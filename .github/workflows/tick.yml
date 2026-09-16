@@ -1,0 +1,18 @@
+name: Scheduler tick
+
+on:
+  schedule:
+    # Her 10 dakikada bir; GitHub yoğunlukta gecikebilir (bkz. PLAN.md cron-job.org notu)
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger backend tick
+        run: |
+          curl -fsS --max-time 60 -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"secret\":\"${{ secrets.TICK_SECRET }}\"}" \
+            "${{ vars.API_URL }}/v1/tick"

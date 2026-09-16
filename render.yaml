@@ -1,3 +1,10 @@
+databases:
+  - name: hersey-yolunda-db
+    database: hersey
+    user: hersey
+    plan: free
+    postgresMajorVersion: "17"
+
 services:
   - type: web
     name: hersey-yolunda-api
@@ -15,7 +22,9 @@ services:
       - key: SCHEDULER_MODE
         value: external
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: hersey-yolunda-db
+          property: connectionString
       - key: DATA_ENCRYPTION_KEY
         sync: false
       - key: LOOKUP_KEY

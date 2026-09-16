@@ -16,7 +16,7 @@ settings:
     HY_INVITE_DOMAIN: ''
   configs:
     Debug:
-      HY_API_URL: 'http://192.168.1.7:3000/v1'
+      HY_API_URL: 'http://Atahan-MacBook-Air.local:3000/v1'
       SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
     Release:
       HY_API_URL: ''
@@ -47,10 +47,6 @@ targets:
         FirebaseAppDelegateProxyEnabled: NO
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
-          NSExceptionDomains:
-            192.168.1.7:
-              NSExceptionAllowsInsecureHTTPLoads: true
-              NSIncludesSubdomains: false
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         CFBundleURLTypes:
           - CFBundleURLName: invitation
