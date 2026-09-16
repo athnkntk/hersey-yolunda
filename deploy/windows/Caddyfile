@@ -1,8 +1,20 @@
 # Windows sunucusu icin Caddy yapilandirmasi.
 # DOMAIN makine seviyesinde ortam degiskeni olarak setup.ps1 tarafindan ayarlanir.
 # API docker'suz calistigi icin hedef 127.0.0.1:3000'dir.
+# IIS 80 portunu tuttugu icin Caddy yalniz 443'e baglanir ve Let's Encrypt'i
+# TLS-ALPN-01 ile dogrular (HTTP-01 kullanilmaz).
+
+{
+	auto_https disable_redirects
+}
 
 {$DOMAIN} {
+	tls {
+		issuer acme {
+			disable_http_challenge
+		}
+	}
+
 	encode zstd gzip
 
 	header {
