@@ -1,0 +1,39 @@
+# Windows sunucusu icin Caddy yapilandirmasi.
+# DOMAIN makine seviyesinde ortam degiskeni olarak setup.ps1 tarafindan ayarlanir.
+# API docker'suz calistigi icin hedef 127.0.0.1:3000'dir.
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+
+	# Apple Universal Links: JSON olarak, yonlendirmesiz sunulmali.
+	handle /.well-known/apple-app-site-association {
+		root * C:/hersey-yolunda/web/public
+		header Content-Type "application/json"
+		file_server
+	}
+
+	@invite path /invite /invite/
+	handle @invite {
+		root * C:/hersey-yolunda/web/public
+		rewrite * /index.html
+		file_server
+	}
+
+	# Mobil uygulamanin kullandigi API ayni domain altinda yayinlanir.
+	handle /v1/* {
+		reverse_proxy 127.0.0.1:3000
+	}
+
+	handle {
+		root * C:/hersey-yolunda/web/public
+		try_files {path} /index.html
+		file_server
+	}
+}
