@@ -36,7 +36,7 @@ struct YolundaWidgetView: View {
                 } else {
                     Button(intent: CheckInIntent()) {
                         Text("BEN İYİYİM").font(.title2.bold()).frame(maxWidth: .infinity, minHeight: 60)
-                    }.buttonStyle(.borderedProminent).tint(green)
+                    }.buttonStyle(.borderedProminent).tint(green).foregroundStyle(.white)
                     Text("\(DateText.day(entry.date)) · Aileme haber ver").font(.caption)
                 }
             } else {

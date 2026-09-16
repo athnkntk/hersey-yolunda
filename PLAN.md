@@ -1477,6 +1477,14 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 - Render Postgres `dpg-dal69k61egvs73emfb50-a` artık kullanılmıyor; 16 Ekim'de kendiliğinden silinir (yalnız test verisi içeriyor).
 - Uyarı: Supabase free 7 gün inaktivitede uyur — 10 dk'lık GitHub Actions tick'i uyanık tutar.
 
+#### App Store gönderimi — 16 Eylül 2026
+
+- IconKitchen tam icon seti `AppIcon.appiconset`'e eklendi (21 boyut). Elle yazılan Info.plist'lerdeki sabit `1.0`/`1` sürümleri `$(MARKETING_VERSION)`/`$(CURRENT_PROJECT_VERSION)` değişkenlerine bağlandı.
+- İmza takımı: **2HBFPNCMR8** (Xcode'da kayıtlı hesap; `5XR3QN2NJ6` App Store Connect **API Key ID**'sidir, imzalama takımı değil — D-014 düzeltmesi). ASC API: Issuer `b2ed3fe2-...`, Key `5XR3QN2NJ6`, `.p8` `~/private_keys/` altında.
+- ASC app kaydı web'den oluşturuldu (Apple API'de CREATE kapalı): app id `6812729799`.
+- Build 1 (0.1.0/1) yüklendi; iPad multitasking reddi → `UIRequiresFullScreen=true` eklendi. Build 2 (0.1.0/2) yüklendi — içinde **widget "BEN İYİYİM" buton görünürlük düzeltmesi** var (VStack'teki `.foregroundStyle(green)` buton yazısını yeşil yapıyordu; `.foregroundStyle(.white)` eklendi).
+- Upload komutu: `xcodebuild -exportArchive -exportOptionsPlist (method app-store-connect, destination upload) -authenticationKeyPath/ID/IssuerID`. İnceleme için metadata/ekran görüntüsü/gizlilik formu web'de doldurulup build 2 seçilecek.
+
 ## 34. Değişiklik geçmişi
 
 | Sürüm | Tarih | Değişiklik |
