@@ -71,4 +71,4 @@ async function main() {
   process.once('SIGTERM', shutdown);
   console.log(`API ready on ${host}:${process.env.PORT ?? 3000}; mode=${production ? 'production' : 'local-test'}; auth=device-account; scheduler=${schedulerMode}; APNs=${pushEnabled ? 'enabled' : 'disabled'}`);
 }
-main().catch(() => { console.error('startup_failed'); process.exitCode = 1; });
+main().catch((error) => { console.error('startup_failed', error); process.exitCode = 1; });
