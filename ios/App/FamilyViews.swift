@@ -3,25 +3,43 @@ import CoreImage.CIFilterBuiltins
 
 struct CircleView: View {
     @EnvironmentObject var state: AppState
+    @StateObject private var store = StoreKitManager.shared
     @Environment(\.scenePhase) private var scenePhase
     @State private var relatives: [Relative] = []
     @State private var relationships: [Relationship] = []
     @State private var invitations: [Invitation] = []
     @State private var selectedRelation: Relationship?
+    @State private var showPaywall = false
     var body: some View {
         List {
             Section {
                 Text("Takip etmek değil, haber almak.").font(.title3).listRowBackground(Color.clear)
-                NavigationLink { InviteView() } label: {
-                    Label("Yakınımı davet et", systemImage: "person.badge.plus").frame(minHeight: 56)
-                }
                 NavigationLink { AcceptInvitationView() } label: {
                     Label("Davet kodum var", systemImage: "envelope.open").frame(minHeight: 56)
                 }
             }
+            if !store.isPremium {
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Aile özellikleri Premium ile açılır").font(.title3.bold())
+                        Text("Yakın davet etme, yakınlarınızın günlük durumunu görme, geçmiş ve bildirimler Premium'dadır. İlk ay ücretsiz.")
+                            .foregroundStyle(.secondary)
+                        PrimaryButton(title: "Premium'u incele") { showPaywall = true }
+                            .accessibilityIdentifier("premiumBanner")
+                    }.padding(.vertical, 8)
+                }
+            }
+            if store.isPremium {
+            Section {
+                NavigationLink { InviteView() } label: {
+                    Label("Yakınımı davet et", systemImage: "person.badge.plus").frame(minHeight: 56)
+                }
+            }
+            }
             if !state.invitationToken.isEmpty {
                 Section { NavigationLink("Gelen daveti görüntüle") { AcceptInvitationView() } }
             }
+            if store.isPremium {
             Section("Yakınlarım") {
                 if relatives.isEmpty { Text("Henüz bağlı bir yakınınız yok. Davet kabul edilip paylaşım onaylandığında burada görünür.").foregroundStyle(.secondary) }
                 ForEach(relatives) { relative in
@@ -66,11 +84,17 @@ struct CircleView: View {
                     }
                 }
             }
+            }
         }
         .navigationTitle("Ailem")
-        .task { await load() }
-        .refreshable { await load() }
-        .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await load() } } }
+        .sheet(isPresented: $showPaywall) { PaywallView() }
+        .task {
+            await store.load()
+            if store.isPremium { await load() }
+        }
+        .refreshable { if store.isPremium { await load() } }
+        .onChange(of: store.isPremium) { _, premium in if premium { Task { await load() } } }
+        .onChange(of: scenePhase) { _, phase in if phase == .active && store.isPremium { Task { await load() } } }
         .onReceive(NotificationCenter.default.publisher(for: .init("HYRemoteNotification"))) { _ in Task { await load() } }
         .confirmationDialog("Bu kişiyle paylaşımı durdur?", isPresented: Binding(get: { selectedRelation != nil }, set: { if !$0 { selectedRelation = nil } }), titleVisibility: .visible) {
             Button("Paylaşımı durdur", role: .destructive) {

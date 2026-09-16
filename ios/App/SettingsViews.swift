@@ -34,7 +34,7 @@ struct SettingsView: View {
                 Button("Çıkış yap") { confirmLogout = true }.frame(minHeight: 56)
             }
             Section {
-                Text("Herşey Yolunda · 0.1.0").foregroundStyle(.secondary)
+                Text("Herşey Yolunda · \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")").foregroundStyle(.secondary)
                 if APIClient.isLocal { Text("Yerel geliştirme sürümü. Telefon/SMS gerekmez. Canlı push, Apple ile kurtarma ve hukuki metinler henüz hazır değil.").foregroundStyle(Design.amber) }
             }
         }.navigationTitle("Ayarlar")
@@ -72,17 +72,22 @@ struct ScheduleView: View {
                         }
                     }
                 }.frame(minHeight: 56).disabled(!loaded || state.loading)
+                if !loaded {
+                    Text("Mevcut programınız alınamadı. Kaydetmeden önce yeniden yükleyin.").foregroundStyle(Design.amber)
+                    Button("Yeniden yükle") { Task { await load() } }.frame(minHeight: 56).disabled(state.loading)
+                }
                 Text("Değişiklik yarın uygulanır. Telefonunuzun saat dilimi programı otomatik değiştirmez.").foregroundStyle(.secondary)
             }
         }.navigationTitle("Kontrol saati")
-            .task {
-                do {
-                    let schedule: Schedule = try await state.api.request("GET", "/me/checkin-schedule")
-                    time = Calendar.current.date(from: DateComponents(hour: schedule.next.minute / 60, minute: schedule.next.minute % 60)) ?? Date()
-                    grace = schedule.next.grace
-                    loaded = true
-                } catch { state.error = error.localizedDescription }
-            }
+            .task { await load() }
+    }
+    private func load() async {
+        do {
+            let schedule: Schedule = try await state.api.request("GET", "/me/checkin-schedule")
+            time = Calendar.current.date(from: DateComponents(hour: schedule.next.minute / 60, minute: schedule.next.minute % 60)) ?? Date()
+            grace = schedule.next.grace
+            loaded = true
+        } catch { state.error = error.localizedDescription }
     }
 }
 
@@ -109,11 +114,16 @@ struct PreferencesView: View {
                     }
                 }
             }.frame(minHeight: 56).disabled(!loaded || state.loading)
-        }.navigationTitle("Bildirimler")
-            .task {
-                do { preferences = try await state.api.request("GET", "/me/notification-preferences"); loaded = true }
-                catch { state.error = error.localizedDescription }
+            if !loaded {
+                Text("Mevcut tercihleriniz alınamadı. Kaydetmeden önce yeniden yükleyin.").foregroundStyle(Design.amber)
+                Button("Yeniden yükle") { Task { await load() } }.frame(minHeight: 56).disabled(state.loading)
             }
+        }.navigationTitle("Bildirimler")
+            .task { await load() }
+    }
+    private func load() async {
+        do { preferences = try await state.api.request("GET", "/me/notification-preferences"); loaded = true }
+        catch { state.error = error.localizedDescription }
     }
 }
 

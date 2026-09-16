@@ -4,7 +4,7 @@ final class CheckInUITests: XCTestCase {
     @MainActor
     func testLoginProfileAndRealBackendCheckIn() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["--uitest-clean"]
+        app.launchArguments = ["--uitest-clean", "--uitest-premium"]
         app.launch()
         XCTAssertFalse(app.textFields["phoneField"].exists)
         XCTAssertFalse(app.textFields["otpField"].exists)
@@ -44,7 +44,7 @@ final class CheckInUITests: XCTestCase {
     @MainActor
     func testLargeTextWelcomeRemainsScrollable() {
         let app = XCUIApplication()
-        app.launchArguments = ["--uitest-clean", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launchArguments = ["--uitest-clean", "--uitest-premium", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
         let name = app.textFields["nameField"]
         XCTAssertTrue(name.waitForExistence(timeout: 15))
