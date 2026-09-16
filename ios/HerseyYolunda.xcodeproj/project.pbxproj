@@ -658,7 +658,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				HY_API_URL = "";
+				HY_API_URL = "https://hersey-yolunda-api.onrender.com/v1";
 				HY_INVITE_DOMAIN = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 0.1.0;

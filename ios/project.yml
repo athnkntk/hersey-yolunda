@@ -19,7 +19,7 @@ settings:
       HY_API_URL: 'http://Atahan-MacBook-Air.local:3000/v1'
       SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
     Release:
-      HY_API_URL: ''
+      HY_API_URL: 'https://hersey-yolunda-api.onrender.com/v1'
 packages:
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk.git
@@ -79,10 +79,6 @@ targets:
         HYKeychainGroup: $(AppIdentifierPrefix)com.herseyyolunda.shared
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
-          NSExceptionDomains:
-            192.168.1.7:
-              NSExceptionAllowsInsecureHTTPLoads: true
-              NSIncludesSubdomains: false
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:

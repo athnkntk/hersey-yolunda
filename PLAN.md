@@ -1446,6 +1446,12 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 6. Sonrası: APNs .p8 anahtarı (canlı push), App Store gönderimi (5XR3QN2NJ6 takımı).
 - Uyarı: 30 gün DB sınırı; GitHub Actions zamanlaması yoğunlukta gecikebilir (cron-job.org yedek).
 
+#### Release yapılandırması (16 Eylül 2026)
+
+- `ios/project.yml` Release `HY_API_URL` artık `https://hersey-yolunda-api.onrender.com/v1` (render.yaml servis adından türetilen adres; Render deploy'u tamamlanınca çalışır). Widget'taki bayat `192.168.1.7` ATS istisnası kaldırıldı; Debug LAN adresi (`Atahan-MacBook-Air.local:3000`) geliştirme için korunuyor.
+- Doğrulama: `xcodegen generate` + `xcodebuild -configuration Release -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -derivedDataPath /tmp/HerSeyYolundaRelease CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- build` → **BUILD SUCCEEDED**. Derlenen Info.plist'te `HYAPIURL=https://hersey-yolunda-api.onrender.com/v1` doğrulandı; Release sürümü iPhone 17 Pro simülatörüne kurulup başlatıldı (PID 17245). Render deploy'u yapılmadığı için uygulama "İşlem tamamlanamadı" gösteriyor — beklenen davranış; servis ayağa kalkınca çalışır.
+- Kalan kullanıcı adımları değişmedi: `gh auth login` → repo push → render.com Blueprint + 3 gizli anahtar → `API_URL` repo değişkeni → canlı doğrulama.
+
 ## 34. Değişiklik geçmişi
 
 | Sürüm | Tarih | Değişiklik |
