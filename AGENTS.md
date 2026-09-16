@@ -1,5 +1,12 @@
 # Herşey Yolunda — Project Rules
 
+## Project location
+
+- The project lives at `~/HerseyYolunda` (NOT ~/Documents — iCloud Desktop&Documents sync caused multi-second file-read stalls and random hangs; do not move it back into an iCloud-synced folder).
+- Debug LAN API host is `Atahan-MacBook-Air.local` (IP-independent via mDNS; NSAllowsLocalNetworking covers it). LAN backend: HOST=0.0.0.0 npm run dev in backend/.
+- Production target is Render (see render.yaml: free web service + free 30-day Postgres, SCHEDULER_MODE=external). The GitHub Actions workflow .github/workflows/tick.yml pings /v1/tick every 10 minutes using secrets.TICK_SECRET and vars.API_URL.
+- Set them after deploy: gh secret set TICK_SECRET; gh variable set API_URL https://<service>.onrender.com
+
 ## Scope
 
 - PLAN.md is the source of truth. Mark a checkbox only after verifying its acceptance criteria; record local-only verification separately from production readiness.

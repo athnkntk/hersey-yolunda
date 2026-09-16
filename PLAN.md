@@ -1,9 +1,9 @@
 # Herşey Yolunda — Ürün ve Geliştirme Planı
 
-- Plan sürümü: 1.4
+- Plan sürümü: 1.5
 - Oluşturulma tarihi: 15 Eylül 2026
 - Hedef platform: iOS
-- Durum: v1.4 Firebase'e geçiş kararı alındı ve iskelet hazırlandı; Google projesi oluşturulması ve Blaze etkinleştirilmesi kullanıcıyı bekliyor. Tam port doğrulanmadan tamamlanmış sayılmaz.
+- Durum: Canlıya çıkış (Render) için kod hazır; `gh auth login` ve Render Blueprint kullanıcı adımları bekleniyor. Proje artık `~/Herşey Yolunda` (iCloud dışı).
 - Çalışma biçimi: Bu dosya kapsam, kararlar, uygulama sırası ve kabul kriterleri için ana referanstır.
 - Marka yazımı: Kullanıcının tercihiyle “Herşey Yolunda”. Normal Türkçe yazımı “Her Şey Yolunda”dır; mağaza ve görsel kimlikte kullanılacak nihai yazım geliştirme öncesi teyit edilecektir.
 
@@ -1412,6 +1412,40 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 - [ ] Blaze planı kart gerektirir; kullanım ücretsiz kotaları aşarsa maliyet doğar (MVP ölçeğinde beklenmez).
 - [ ] Mevcut NestJS backend yerel testler için korunur; Firebase portu doğrulanana kadar silinmez.
 
+### v1.5 uygulama ve doğrulama kaydı — 16 Eylül 2026 (canlıya çıkış hazırlığı)
+
+#### iCloud sorunu ve proje taşınması
+
+- Kullanıcı: "iCloud ile uygulamanın bir bağı olmasın." Teşhis: `~/Documents` iCloud Drive "Desktop & Documents" senkronizasyonu altında; disk ~12 GB boş olunca dosyalar "dataless" duruma düşüyor ve okumalar ~1 sn/file seviyesine çıkıyor. Bu, oturumdaki tüm gizemli takılmaların (sunucu açılışı, tsc, derleme) kök nedeniydi.
+- Proje `~/Documents/Herşey Yolunda` → **`~/Herşey Yolunda`** taşındı (6 dk 21 sn; File Provider tüm dosyaları yerelleştirdi). Aynı dosya eskiden 1.27 sn, artık 4 ms okunuyor. Proje artık iCloud senkronizasyonu dışında; geri taşınmamalı.
+- Uygulamanın kendisi zaten iCloud bağı yok (CloudKit yok, D-015 Render kararı). Sorun yalnızca geliştirme klasörü konumundaydı.
+- Not: LAN IP değişti (192.168.1.7 → 10.23.17.172, farklı ağ). iOS Debug API adresi artık `http://Atahan-MacBook-Air.local:3000/v1` — modem değişimlerine dayanıklı; `isLANHost` artık `.local` adlarını kabul ediyor (+DomainTests; tam simülatör koşusu canlı URL ile yapılacak).
+
+#### Render/Neon kararı (D-015) ve zamanlayıcı (D-016)
+
+- Kullanıcı Blaze'i (kart gerektirdiği için) reddetti ve **Render + Neon** yolunu seçti; ardından "direk canlıya alalım" talimatı verdi.
+- Hız için Render'ın kendi ücretsiz Postgres'i kullanılıyor (render.yaml `databases` bloğu; DATABASE_URL blueprint ile otomatik bağlanır — ayrı Neon hesabı şart değil). **Üretim DB'si 30 gün sonra silinir**; ciddi kullanımda Neon'a geçilecek (PLAN'da belgelendi).
+- `SCHEDULER_MODE=external`: üretimde dahili 15 sn'lik tarama kapalı; korumalı `POST /v1/tick` ucu (TICK_SECRET + timingSafeEqual) dışarıdan tetikler. /tick transaction dışında çalışır — iç içe transaction PGlite'da kilitlenir (test yakaladı, düzeltildi).
+- Neon uyku sorununa çözüm: tarama 10 dk'da bir tetiklenir → Render uyanık kalır (750 saat/ay, bir servis 24/7'ye yeter), Neon/CU bütçesi korunur.
+- `.github/workflows/tick.yml`: GitHub Actions her 10 dk'da bir `/v1/tick`'i çağırır (`secrets.TICK_SECRET`, `vars.API_URL`). Yoğunlukta gecikebilir; daha hassas zamanlama gerekirse cron-job.org (PLAN'da not).
+
+#### Doğrulananlar
+
+- Backend: **33/33 test** (yeni `/tick` ucu: yanlış anahtar 403, doğru anahtar tick çalışır, anahtar yok 404). PGlite/PostgreSQL `sslmode=require` desteği (Neon uyumu).
+- Git deposu açıldı: ilk commit `ff7823d` (62 dosya), ikinci `95b4249` (Render Postgres blueprint + tick workflow + .local adresi). Bayat `HerseyYolunda 2/3.xcodeproj` kopyaları depoya alınmadı (gitignore; Finder'dan silinebilir).
+- Render için 3 gizli anahtar üretildi (sohbette kullanıcıya verildi; depoya asla girmez).
+- `gh` CLI kuruldu (v2.101.0); kimlik doğrulama kullanıcıyı bekliyor.
+
+#### Canlıya çıkış adımları (kalan)
+
+1. Kullanıcı: `gh auth login` (tarayıcı, ~30 sn).
+2. Devin: repo oluştur + push + `TICK_SECRET` repo secret'ı (görünürlük kararı: public = Actions sınırsız; private = 2000 dk/ay).
+3. Kullanıcı: render.com → GitHub ile üye → **New → Blueprint** → repo seç → 3 anahtarı yapıştır → Apply (DATABASE_URL otomatik).
+4. Devin: `API_URL` repo değişkenini ayarla; tick workflow'u elle tetikleyip doğrula.
+5. Devin: iOS Release derlemesi `HY_API_URL=https://<servis>.onrender.com/v1` ile → gerçek iPhone'a kurulum → canlı aile testi.
+6. Sonrası: APNs .p8 anahtarı (canlı push), App Store gönderimi (5XR3QN2NJ6 takımı).
+- Uyarı: 30 gün DB sınırı; GitHub Actions zamanlaması yoğunlukta gecikebilir (cron-job.org yedek).
+
 ## 34. Değişiklik geçmişi
 
 | Sürüm | Tarih | Değişiklik |
@@ -1421,7 +1455,8 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 | 1.2 | 15 Eylül 2026 | Telefon/OTP yerine adla cihaz hesabı; güvenli kayıt tekrar anahtarı, ID tabanlı ilişkiler, süreli link/QR/kod daveti, veri koruyan migration ve güncellenen testler. Apple kurtarma açık iş olarak ayrıldı. |
 | 1.3 | 15 Eylül 2026 | HTTPS davet bağlantısı (AASA + açılış sayfası + Caddy), v1.2 sürümünün gerçek iPhone'a kurulumu, LAN erişimi ve Docker/Caddy dağıtım paketi. Canlı yayın için domain/sunucu/mağaza kararları açık bırakıldı. |
 | 1.4 | 15 Eylül 2026 | Firebase'e geçiş kararı (D-013) ve iskelet: firebase.json, deny-all Firestore kuralları, functions yapısı, kullanıcı Google adım listesi. App Store takımı 5XR3QN2NJ6 kaydedildi (D-014). |
+| 1.5 | 16 Eylül 2026 | iCloud teşhisi ve projenin ~/Herşey Yolunda'ya taşınması; Render/Neon kararı (D-015), dış zamanlayıcı /tick (D-016), 33 backend testi, git deposu + Render Postgres blueprint + tick workflow; canlıya çıkış adımları netleştirildi. |
 
 ---
 
-**Bir sonraki adım:** Kullanıcının Firebase projesini oluşturması ve Blaze'i etkinleştirmesi (yukarıdaki 5 adım); `GoogleService-Info.plist` geldikten sonra `functions/` tam portu (cihaz hesabı, check-in idempotency, davetler, scheduler, FCM) yazılıp Functions URL'si ile uçtan uca doğrulanacak; iOS tarafında yalnız API kök adresi ve Firebase Messaging entegrasyonu güncellenecek. App Store gönderiminde `5XR3QN2NJ6` takımı Xcode hesaplarına eklenip imzalama ona çevrilecek. Teknik kayıtlar Bölüm 33'tedir.
+**Bir sonraki adım:** Kullanıcı `gh auth login` ile GitHub kimliğini doğrular (repo görünürlüğü kararı ile); Devin repo'yu oluşturup push eder ve `TICK_SECRET` secret'ını ayarlar. Kullanıcı render.com'da GitHub ile üye olup Blueprint akışıyla 3 gizli anahtarı girer ve servisi başlatır. Devin canlı `/v1/health` + `/v1/tick` doğrulaması yapar, iOS Release derlemesini canlı URL ile telefona kurar ve aile testine geçilir. Sonrası: APNs .p8 (canlı push) ve App Store gönderimi (5XR3QN2NJ6). Teknik kayıtlar Bölüm 33'tedir.
