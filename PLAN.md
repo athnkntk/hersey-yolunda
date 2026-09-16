@@ -1485,6 +1485,12 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 - **Sınır:** Entitlement yalnızca istemcide (StoreKit doğrulamalı transaction). Backend doğrulaması + App Store Server Notifications (V2) hâlâ açık — revocation/refund sunucuda işlenmiyor; Faz 2 maddesi güncel değil, kısmen uygulandı.
 - Build 3 (0.1.0/3) yüklendi, `usesNonExemptEncryption=false` beyan edildi, versiyona bağlandı. İlk submission (build 2, aboneliksiz) iptal edildi (item eklenemiyordu); yeni submission `7c92e133-…` = appStoreVersion + subscriptionVersion + subscriptionGroupVersion (ilk onay gereği grup da item) → `submitted` → **WAITING_FOR_REVIEW**.
 
+#### İkon ortalama + aile akışı canlı testi — 16 Eylül 2026
+
+- **İkon:** Kaynak 1024 görselde kalp/kişi sanatı yukarıda kalıyordu (y-bbox +81, merkez ~113px kayık) ve köşeler beyaz (yuvarlak ikon içi beyaz). ImageMagick ile artwork maskelenip krem tam-bleed zemine dikey/yatay ortalandı; 21 boyut yeniden üretildi. Build 4 (0.1.0/4) yüklendi ve submission build'i 4'e güncellendi.
+- **Info.plist notu:** Çalışan `$(MARKETING_VERSION)`/`$(CURRENT_PROJECT_VERSION)` değerleri bir ara çalışma kopyasında `1.0`/`1`'e geri dönmüştü — build 4 öncesi tekrar düzeltildi; yükleme hatası ("version must be higher than 1") bu yüzdendi.
+- **Aile akışı canlı API testi (Supabase):** share_mine → kod önizleme → accept(awaiting_approval) → creator approve → /me/relatives'te profil+today durumu göründü. request_theirs → accept → anında bağlantı. decline, geçersiz kod 404, kendi davetini kabul 403, ilişki DELETE ve liste boşalması hepsi doğrulandı.
+
 #### App Store gönderimi — 16 Eylül 2026
 
 - IconKitchen tam icon seti `AppIcon.appiconset`'e eklendi (21 boyut). Elle yazılan Info.plist'lerdeki sabit `1.0`/`1` sürümleri `$(MARKETING_VERSION)`/`$(CURRENT_PROJECT_VERSION)` değişkenlerine bağlandı.
