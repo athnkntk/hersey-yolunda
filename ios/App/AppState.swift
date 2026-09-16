@@ -30,6 +30,10 @@ final class AppState: ObservableObject {
         if ProcessInfo.processInfo.arguments.contains("--uitest-clean") {
             try? await api.forgetSession()
         }
+        if ProcessInfo.processInfo.arguments.contains("--uitest-signed-in") {
+            signedIn = true
+            return
+        }
         signedIn = (try? SharedStorage.session()) != nil
         if signedIn { await reload() }
     }

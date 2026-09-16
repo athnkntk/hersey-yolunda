@@ -49,15 +49,8 @@ final class AppStoreScreenshots: XCTestCase {
     @MainActor
     func testCapturePaywall() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["--uitest-clean"]
+        app.launchArguments = ["--uitest-clean", "--uitest-signed-in"]
         app.launch()
-
-        let name = app.textFields["nameField"]
-        XCTAssertTrue(name.waitForExistence(timeout: 15))
-        name.tap()
-        name.typeText("Ayşe")
-        app.buttons["createAccount"].tap()
-        XCTAssertTrue(app.buttons["checkInButton"].waitForExistence(timeout: 15))
 
         app.descendants(matching: .any)["Ailem"].firstMatch.tap()
         let banner = app.buttons["premiumBanner"]

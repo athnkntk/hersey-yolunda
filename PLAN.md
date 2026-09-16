@@ -1477,6 +1477,14 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 - Render Postgres `dpg-dal69k61egvs73emfb50-a` artık kullanılmıyor; 16 Ekim'de kendiliğinden silinir (yalnız test verisi içeriyor).
 - Uyarı: Supabase free 7 gün inaktivitede uyur — 10 dk'lık GitHub Actions tick'i uyanık tutar.
 
+#### Premium abonelik (StoreKit 2) — 16 Eylül 2026
+
+- **Model:** Aylık otomatik yenilenen `premium_monthly` aboneliği — 199,99 TL/ay, **1 ay ücretsiz deneme** (intro offer, 175 ülke). Diğer ülkeler Apple eşdeğer kurunda (örn. ABD $3,99).
+- **ASC:** Grup "Premium" (22389833), abonelik `6812755028` (productId `premium_monthly`, ONE_MONTH). Lokalizasyon tr ("Premium Aylık"), availability 175 ülke, fiyatlar equalization noktalarıyla, intro offer FREE_TRIAL/ONE_MONTH tüm bölgelerde. İnceleme görseli (paywall) `subscriptionAppStoreReviewScreenshots` ile yüklendi → `READY_TO_SUBMIT`.
+- **iOS:** `StoreKitManager` (Product load, purchase, restore/AppStore.sync, Transaction.updates listener, currentEntitlements → isPremium). `PaywallView`: fiyat/deneme beyanı, iptal koşulları, Gizlilik + Kullanım Koşulları (Apple EULA) linkleri, restore — Apple 3.1.2 gereksinimleri. Ailem sekmesi premium: yakın daveti, durum görme, geçmiş, bildirimler; **check-in ve davet kabulü ücretsiz** (yaşlı yakın ödeme yapmaz). UI testleri `--uitest-premium` ile gate'i aşar, `--uitest-signed-in` sahte oturum sağlar.
+- **Sınır:** Entitlement yalnızca istemcide (StoreKit doğrulamalı transaction). Backend doğrulaması + App Store Server Notifications (V2) hâlâ açık — revocation/refund sunucuda işlenmiyor; Faz 2 maddesi güncel değil, kısmen uygulandı.
+- Build 3 (0.1.0/3) yüklendi, `usesNonExemptEncryption=false` beyan edildi, versiyona bağlandı. İlk submission (build 2, aboneliksiz) iptal edildi (item eklenemiyordu); yeni submission `7c92e133-…` = appStoreVersion + subscriptionVersion + subscriptionGroupVersion (ilk onay gereği grup da item) → `submitted` → **WAITING_FOR_REVIEW**.
+
 #### App Store gönderimi — 16 Eylül 2026
 
 - IconKitchen tam icon seti `AppIcon.appiconset`'e eklendi (21 boyut). Elle yazılan Info.plist'lerdeki sabit `1.0`/`1` sürümleri `$(MARKETING_VERSION)`/`$(CURRENT_PROJECT_VERSION)` değişkenlerine bağlandı.
@@ -1495,6 +1503,7 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 | 1.3 | 15 Eylül 2026 | HTTPS davet bağlantısı (AASA + açılış sayfası + Caddy), v1.2 sürümünün gerçek iPhone'a kurulumu, LAN erişimi ve Docker/Caddy dağıtım paketi. Canlı yayın için domain/sunucu/mağaza kararları açık bırakıldı. |
 | 1.4 | 15 Eylül 2026 | Firebase'e geçiş kararı (D-013) ve iskelet: firebase.json, deny-all Firestore kuralları, functions yapısı, kullanıcı Google adım listesi. App Store takımı 5XR3QN2NJ6 kaydedildi (D-014). |
 | 1.5 | 16 Eylül 2026 | iCloud teşhisi ve projenin ~/Herşey Yolunda'ya taşınması; Render/Neon kararı (D-015), dış zamanlayıcı /tick (D-016), 33 backend testi, git deposu + Render Postgres blueprint + tick workflow; canlıya çıkış adımları netleştirildi. |
+| 1.6 | 16 Eylül 2026 | Freemium katmanı: StoreKit 2 aylık abonelik (199,99 TL, 1 ay deneme), paywall, Ailem gate'i, ASC ürün/fiyat/deneme yapılandırması, build 3 ve üç-parçalı inceleme gönderimi; ayrıca ayar kaydet butonlarının kalıcı pasif bug'ı, 12s→30s API timeout ve Info.plist sürüm değişkenleri düzeltildi. |
 
 ---
 
