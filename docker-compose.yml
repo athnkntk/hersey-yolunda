@@ -22,6 +22,8 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 3000
+      SCHEDULER_MODE: ${SCHEDULER_MODE:-internal}
+      TICK_SECRET: ${TICK_SECRET:-}
       DATABASE_URL: postgres://hersey:${POSTGRES_PASSWORD}@db:5432/hersey
       DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?Set DATA_ENCRYPTION_KEY in .env}
       LOOKUP_KEY: ${LOOKUP_KEY:?Set LOOKUP_KEY in .env}
