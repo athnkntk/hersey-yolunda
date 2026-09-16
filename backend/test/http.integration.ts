@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
 
 const base = process.env.HY_TEST_API_URL ?? 'http://127.0.0.1:3000/v1';
+const expectedMode = /^https:\/\//.test(base) ? 'production' : 'development';
 async function call(method: string, path: string, body?: any, token?: string, key?: string) {
   const response = await fetch(base + path, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}), ...(key ? { 'Idempotency-Key': key } : {}) }, body: body ? JSON.stringify(body) : undefined });
   return { status: response.status, data: await response.json() as any, cache: response.headers.get('cache-control') };
@@ -15,7 +16,7 @@ async function login() {
 
 test('HTTP contract: auth, validation, profile, invite, check-in, revocation and deletion', async () => {
   const health = await call('GET', '/health');
-  assert.equal(health.data.mode, 'development');
+  assert.equal(health.data.mode, expectedMode);
   assert.equal(health.cache, 'no-store');
   assert.equal((await call('GET', '/me')).status, 401);
   assert.equal((await call('POST', '/auth/device', { name: '' })).status, 400);

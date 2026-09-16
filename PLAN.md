@@ -1461,6 +1461,13 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 - Simülatör: Release derlemesi canlı URL ile çalışıyor; eski yerel oturum "Yeniden giriş yapın" ile düştü (beklenen), onboarding ekranı açık.
 - Not: `hersey_app` DB kullanıcısı varsayılan oldu; `hersey` kullanıcısı da duruyor. Secrets repoda yok; Render env'de + GitHub secret'ta.
 
+#### Canlı test koşusu — 16 Eylül 2026
+
+- Backend `npm run verify`: **33/33 geçti** (yerel, izole DB).
+- `HY_TEST_API_URL=https://hersey-yolunda-api.onrender.com/v1 npm run test:http`: **1/1 geçti** — canlıda tam kontrat (auth/device, validasyon, profil, davet kabul, check-in idempotency, aile görünürlüğü, bildirim, iptal, silme). Test `mode` assert'i artık ortama duyarlı (https→production).
+- iOS tam paket canlı API ile: `xcodebuild -project HerseyYolunda.xcodeproj -scheme HerseyYolunda -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -derivedDataPath /tmp/HerSeyYolundaLive HY_API_URL=https://hersey-yolunda-api.onrender.com/v1 CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- -parallel-testing-enabled NO test` → **13/13 geçti** (11 unit + 2 UI; UI testi canlıda hesap açıp check-in/davet/program akışını yürüttü). Sonuç: `/tmp/HerSeyYolundaLive/Logs/Test/Test-HerseyYolunda-2026.09.16_13-03-24-+0300.xcresult`.
+- Kayıt hız limiti (10 hesap/saat/IP) canlıda dolmadı.
+
 ## 34. Değişiklik geçmişi
 
 | Sürüm | Tarih | Değişiklik |
