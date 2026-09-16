@@ -1468,6 +1468,15 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 - iOS tam paket canlı API ile: `xcodebuild -project HerseyYolunda.xcodeproj -scheme HerseyYolunda -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -derivedDataPath /tmp/HerSeyYolundaLive HY_API_URL=https://hersey-yolunda-api.onrender.com/v1 CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- -parallel-testing-enabled NO test` → **13/13 geçti** (11 unit + 2 UI; UI testi canlıda hesap açıp check-in/davet/program akışını yürüttü). Sonuç: `/tmp/HerSeyYolundaLive/Logs/Test/Test-HerseyYolunda-2026.09.16_13-03-24-+0300.xcresult`.
 - Kayıt hız limiti (10 hesap/saat/IP) canlıda dolmadı.
 
+#### Supabase geçişi ve Windows VPS denemesi — 16 Eylül 2026
+
+- **Karar:** Render'ın ücretsiz Postgres'i 30 günde silindiği için DB **Supabase**'e taşındı (ücretsiz, süresiz, 500 MB). Windows VPS denemesi yarıda bırakıldı (IIS 80'i tutuyor, 443'te http.sys çakışması; sunucuda başka uygulama var). VPS'teki görevler devre dışı bırakılabilir.
+- **Yapılan:** Supabase projesi `bsenfhvoytxwtkwcsbzl` (kullanıcı oluşturdu; bölge **ap-northeast-2/Seul** — Frankfurt→Seul ~250ms gecikme, MVP için kabul edilebilir). Render `DATABASE_URL` → Supavisor **session pooler** `aws-0-ap-northeast-2.pooler.supabase.com:5432` + `sslmode=require`. Session modu şart: transaction pooler advisory lock'u bozar.
+- **Doğrulama:** Render loglarında `database_ready`; `/v1/health` ok; `POST /auth/device` canlıda hesap üretti (migration'lar boş Supabase DB'sinde çalıştı).
+- Windows kurulum paketi `deploy/windows/` repoda duruyor (setup.ps1 + TLS-ALPN Caddyfile) — ileride Linux VPS'e geçilirse veya IIS'siz sunucuda referans. `docker-compose.yml`'e `SCHEDULER_MODE` eklendi. `main.ts` artık `startup_failed`'in asıl hatasını basıyor.
+- Render Postgres `dpg-dal69k61egvs73emfb50-a` artık kullanılmıyor; 16 Ekim'de kendiliğinden silinir (yalnız test verisi içeriyor).
+- Uyarı: Supabase free 7 gün inaktivitede uyur — 10 dk'lık GitHub Actions tick'i uyanık tutar.
+
 ## 34. Değişiklik geçmişi
 
 | Sürüm | Tarih | Değişiklik |
