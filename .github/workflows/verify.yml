@@ -1,0 +1,46 @@
+name: Verify
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm run verify
+      - run: npm audit --audit-level=moderate
+  ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts
+        working-directory: backend
+      - run: |
+          npm run dev &
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/v1/health; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+        working-directory: backend
+      - run: npm run test:http
+        working-directory: backend
+      - run: brew install xcodegen
+      - run: xcodegen generate
+        working-directory: ios
+      - run: xcodebuild -project HerseyYolunda.xcodeproj -scheme HerseyYolunda -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -derivedDataPath "$RUNNER_TEMP/HerseyYolunda" HY_API_URL=http://127.0.0.1:3000/v1 CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- -parallel-testing-enabled NO test
+        working-directory: ios

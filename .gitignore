@@ -1,0 +1,20 @@
+node_modules/
+.build/
+DerivedData/
+backend/.data/
+backend/.data.bak-*/
+functions/node_modules/
+functions/lib/
+.firebase/
+*-debug.log
+google-service.json
+.env
+.env.*
+!.env.example
+*.xcuserstate
+xcuserdata/
+.DS_Store
+*.p8
+*.p12
+*.mobileprovision
+ios/HerseyYolunda *.xcodeproj/

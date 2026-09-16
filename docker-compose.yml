@@ -1,0 +1,57 @@
+name: hersey-yolunda
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hersey
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: hersey
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hersey -d hersey"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: postgres://hersey:${POSTGRES_PASSWORD}@db:5432/hersey
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?Set DATA_ENCRYPTION_KEY in .env}
+      LOOKUP_KEY: ${LOOKUP_KEY:?Set LOOKUP_KEY in .env}
+      APNS_ENABLED: ${APNS_ENABLED:-false}
+      APNS_KEY_ID: ${APNS_KEY_ID:-}
+      APNS_TEAM_ID: ${APNS_TEAM_ID:-}
+      APNS_PRIVATE_KEY: ${APNS_PRIVATE_KEY:-}
+      APNS_TOPIC: ${APNS_TOPIC:-}
+      APNS_SANDBOX: ${APNS_SANDBOX:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+    volumes:
+      - ./web/public:/srv:ro
+      - ./web/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

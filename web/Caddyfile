@@ -1,0 +1,41 @@
+{
+	# DOMAIN ortam değişkeni docker-compose üzerinden verilir.
+	# Caddy, Let's Encrypt ile otomatik HTTPS sağlar; sunucunun 80/443 portlarına
+	# dışarıdan erişilebilir olması ve DNS A kaydının bu sunucuyu göstermesi gerekir.
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+
+	# Apple Universal Links doğrulaması: JSON olarak, yönlendirmesiz sunulmalı.
+	handle /.well-known/apple-app-site-association {
+		root * /srv
+		header Content-Type "application/json"
+		file_server
+	}
+
+	@invite path /invite /invite/
+	handle @invite {
+		root * /srv
+		rewrite * /index.html
+		file_server
+	}
+
+	# Mobil uygulamanın kullandığı API aynı domain altında yayınlanır.
+	handle /v1/* {
+		reverse_proxy api:3000
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: hersey-yolunda-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /v1/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: SCHEDULER_MODE
+        value: external
+      - key: DATABASE_URL
+        sync: false
+      - key: DATA_ENCRYPTION_KEY
+        sync: false
+      - key: LOOKUP_KEY
+        sync: false
+      - key: TICK_SECRET
+        sync: false
