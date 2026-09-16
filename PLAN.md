@@ -1452,6 +1452,15 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 - Doğrulama: `xcodegen generate` + `xcodebuild -configuration Release -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -derivedDataPath /tmp/HerSeyYolundaRelease CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- build` → **BUILD SUCCEEDED**. Derlenen Info.plist'te `HYAPIURL=https://hersey-yolunda-api.onrender.com/v1` doğrulandı; Release sürümü iPhone 17 Pro simülatörüne kurulup başlatıldı (PID 17245). Render deploy'u yapılmadığı için uygulama "İşlem tamamlanamadı" gösteriyor — beklenen davranış; servis ayağa kalkınca çalışır.
 - Kalan kullanıcı adımları değişmedi: `gh auth login` → repo push → render.com Blueprint + 3 gizli anahtar → `API_URL` repo değişkeni → canlı doğrulama.
 
+#### Canlı deploy kaydı — 16 Eylül 2026 (Render API ile)
+
+- GitHub: `gh auth login` (kullanıcı `athnkntk`), repo **public** oluşturuldu: `github.com/athnkntk/hersey-yolunda` (tüm commit'ler push edildi). `TICK_SECRET` repo secret'ı ve `API_URL=https://hersey-yolunda-api.onrender.com` repo değişkeni ayarlandı.
+- Render (API key ile, dashboard Blueprint yerine): Postgres `dpg-dal69k61egvs73emfb50-a` (free, **frankfurt**, PG17, 30 gün: 16 Ekim'de silinir) + web servisi `srv-dal6belbedkc73be8fs0` (free, frankfurt, Docker, health `/v1/health`, autoDeploy açık). Env: NODE_ENV/HOST/SCHEDULER_MODE=external + DATABASE_URL (internal) + 3 gizli anahtar. Yeni DB kullanıcısı `hersey_app` (API üzerinden, connection-info'dan alındı).
+- İlk deploy `update_failed`: Dockerfile'da `ENV NODE_ENV=production` satırı `npm ci`'nin devDependencies'i atlamasına yol açtı → `tsx` yok → `ERR_MODULE_NOT_FOUND`. Düzeltme: `npm ci --include=dev` (+HEALTHCHECK `${PORT:-3000}`). İkinci deploy **live**.
+- Canlı doğrulama: `GET /v1/health` → `{"status":"ok","mode":"production"}`; yanlış secret ile `/v1/tick` → 400, doğru secret → `{"ok":true}`; `gh workflow run tick.yml` → Actions'tan uçtan uca tick başarılı; `POST /v1/auth/device` → gerçek hesap/token üretildi (DB yazıyor).
+- Simülatör: Release derlemesi canlı URL ile çalışıyor; eski yerel oturum "Yeniden giriş yapın" ile düştü (beklenen), onboarding ekranı açık.
+- Not: `hersey_app` DB kullanıcısı varsayılan oldu; `hersey` kullanıcısı da duruyor. Secrets repoda yok; Render env'de + GitHub secret'ta.
+
 ## 34. Değişiklik geçmişi
 
 | Sürüm | Tarih | Değişiklik |
