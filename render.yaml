@@ -1,9 +1,7 @@
-databases:
-  - name: hersey-yolunda-db
-    database: hersey
-    user: hersey
-    plan: free
-    postgresMajorVersion: "17"
+# Veritabanı Supabase Postgres'te barındırılıyor; Render artık Postgres
+# yönetmiyor. Eski `databases:` bölümü kaldırıldı — blueprint sync, silinmiş
+# ücretsiz Postgres'i her push'ta yeniden yaratmaya çalışıp "Deploy failed"
+# maillerine yol açıyordu. DATABASE_URL panelde elle Supabase'e işaretli.
 
 services:
   - type: web
