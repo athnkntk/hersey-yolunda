@@ -10,6 +10,7 @@
 		06DE21D681BD7CEFB237DFE8 /* CheckInIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB9BD57C661BE934F2F09C7F /* CheckInIntent.swift */; };
 		17F77DC88BF96D93A7B79856 /* CheckInIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB9BD57C661BE934F2F09C7F /* CheckInIntent.swift */; };
 		191692CB0264EFB5D8990E5A /* YolundaWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9D505906E69E7632F2FD8D60 /* YolundaWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		2AE068E25D329CDCC153917F /* LocalNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DCF945ECEBC77DB416D7FE3 /* LocalNotifications.swift */; };
 		2E6CA397BEAC21696AE058B6 /* DomainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7ADAB476D307E3D0A5D40C10 /* DomainTests.swift */; };
 		2E90E2DC8C577A0C51D1AFB6 /* CheckInUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366BC0C736FF37EED19A55EE /* CheckInUITests.swift */; };
 		31C0E7320977005C3949F56B /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39FE7B14CF67BE2B4B22BDD4 /* AppState.swift */; };
@@ -23,6 +24,7 @@
 		74CE28225816C4363B955F6E /* AppStoreScreenshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC51AEAD6731032975FFF6E6 /* AppStoreScreenshots.swift */; };
 		8B36BB366DD9E14772349E71 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E4B1B3F8F1002DD1AF199EF /* PaywallView.swift */; };
 		8C5DF5FD68AED7A13B03BBA4 /* NotificationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8404A9A8B27060B25E4C536E /* NotificationDelegate.swift */; };
+		9C30081954ABDCFBCF46E9DF /* LocalNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DCF945ECEBC77DB416D7FE3 /* LocalNotifications.swift */; };
 		A3F64A35F6868529CDD3AC8D /* IntentIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36264A741C9B23F43D7BC863 /* IntentIntegrationTests.swift */; };
 		A83EF695FC2CE88D5E5E84B3 /* FamilyViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80EBE361524FB42B9D6DAB94 /* FamilyViews.swift */; };
 		B57103EA20914E2672CE22F9 /* StoreKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA2A290405C0F072FD50895 /* StoreKitManager.swift */; };
@@ -89,6 +91,7 @@
 		39FE7B14CF67BE2B4B22BDD4 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		3E4B1B3F8F1002DD1AF199EF /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		55EB10FEC6360CCFEEC29DA3 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		5DCF945ECEBC77DB416D7FE3 /* LocalNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNotifications.swift; sourceTree = "<group>"; };
 		60A359032C60D501F09B05C7 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 		7ADAB476D307E3D0A5D40C10 /* DomainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainTests.swift; sourceTree = "<group>"; };
 		80EBE361524FB42B9D6DAB94 /* FamilyViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyViews.swift; sourceTree = "<group>"; };
@@ -127,6 +130,7 @@
 				55EB10FEC6360CCFEEC29DA3 /* APIClient.swift */,
 				AB9BD57C661BE934F2F09C7F /* CheckInIntent.swift */,
 				8241F8156F114B1D34E73366 /* InvitationInput.swift */,
+				5DCF945ECEBC77DB416D7FE3 /* LocalNotifications.swift */,
 				A42220B1A9952F6DE6107889 /* Models.swift */,
 				0341E768B9A001A6556558C5 /* PrivacyInfo.xcprivacy */,
 			);
@@ -294,20 +298,20 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					59006AE13BA0EDA72C32DA0F = {
-						DevelopmentTeam = 5XR3QN2NJ6;
+						DevelopmentTeam = 2HBFPNCMR8;
 						ProvisioningStyle = Automatic;
 					};
 					97604362EB70E1FAE5D5632B = {
-						DevelopmentTeam = 5XR3QN2NJ6;
+						DevelopmentTeam = 2HBFPNCMR8;
 						ProvisioningStyle = Automatic;
 					};
 					C611E1A10652434C8274F085 = {
-						DevelopmentTeam = 5XR3QN2NJ6;
+						DevelopmentTeam = 2HBFPNCMR8;
 						ProvisioningStyle = Automatic;
 						TestTargetID = 97604362EB70E1FAE5D5632B;
 					};
 					D34DD6E25411682B4FAE852C = {
-						DevelopmentTeam = 5XR3QN2NJ6;
+						DevelopmentTeam = 2HBFPNCMR8;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -369,6 +373,7 @@
 				A83EF695FC2CE88D5E5E84B3 /* FamilyViews.swift in Sources */,
 				FF13FEDAFF34AA4DC9402D1A /* HerseyYolundaApp.swift in Sources */,
 				D854EE00942C0A95A62994BD /* InvitationInput.swift in Sources */,
+				9C30081954ABDCFBCF46E9DF /* LocalNotifications.swift in Sources */,
 				462C3B1D49C33F4CA175B06C /* Models.swift in Sources */,
 				8C5DF5FD68AED7A13B03BBA4 /* NotificationDelegate.swift in Sources */,
 				8B36BB366DD9E14772349E71 /* PaywallView.swift in Sources */,
@@ -384,6 +389,7 @@
 				C470FA2FC8CADC776720698F /* APIClient.swift in Sources */,
 				17F77DC88BF96D93A7B79856 /* CheckInIntent.swift in Sources */,
 				FD0E1D4D4B84DB7829BD1AA2 /* InvitationInput.swift in Sources */,
+				2AE068E25D329CDCC153917F /* LocalNotifications.swift in Sources */,
 				E4AFD753F02C11DF440532AE /* Models.swift in Sources */,
 				405391E86B4B83FC01D9D3D8 /* YolundaWidget.swift in Sources */,
 			);
@@ -551,7 +557,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 4;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 5XR3QN2NJ6;
+				DEVELOPMENT_TEAM = 2HBFPNCMR8;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -658,7 +664,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 4;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 5XR3QN2NJ6;
+				DEVELOPMENT_TEAM = 2HBFPNCMR8;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;

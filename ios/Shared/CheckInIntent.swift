@@ -15,7 +15,8 @@ struct CheckInIntent: AppIntent {
         }
         let profile: Profile = try await APIClient.shared.request("GET", "/me", expectedUser: snapshot.userId)
         let today: Today = try await APIClient.shared.request("GET", "/me/checkin/today", expectedUser: snapshot.userId)
-        _ = try await APIClient.shared.checkIn(profile: profile, today: today, source: "ios_widget")
+        let updated = try await APIClient.shared.checkIn(profile: profile, today: today, source: "ios_widget")
+        await LocalNotifications.sync(today: updated, enabled: profile.enabled)
         WidgetCenter.shared.reloadAllTimelines()
         return .result()
     }

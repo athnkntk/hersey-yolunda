@@ -118,6 +118,7 @@ struct WelcomeView: View {
             try await state.api.createAccount(name: name, enabled: enabled)
             state.signedIn = true
             await state.reload()
+            await state.notificationPermission()
             if !enabled || !state.invitationToken.isEmpty { state.tab = 1 }
         } catch {
             hasPending = (try? SharedStorage.registration()) != nil

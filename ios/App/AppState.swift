@@ -23,6 +23,7 @@ final class AppState: ObservableObject {
                 self?.signedIn = false
                 self?.profile = nil
                 self?.today = nil
+                LocalNotifications.cancelReminders()
             }
     }
 
@@ -51,6 +52,7 @@ final class AppState: ObservableObject {
             today = status
             online = true
             SharedStorage.saveSnapshot(profile: user, today: status)
+            await LocalNotifications.sync(today: status, enabled: user.enabled)
         } catch {
             if isCancellationError(error) { return }
             online = false
@@ -63,15 +65,20 @@ final class AppState: ObservableObject {
         error = nil
         defer { sending = false }
         do {
-            self.today = try await api.checkIn(profile: profile, today: today, source: "app")
+            let result = try await api.checkIn(profile: profile, today: today, source: "app")
+            self.today = result
             online = true
+            await LocalNotifications.sync(today: result, enabled: profile.enabled)
         } catch { if !isCancellationError(error) { self.error = error.localizedDescription } }
     }
     func pause(_ value: Bool) async {
         await perform {
             let result: Today = try await self.api.request("POST", value ? "/me/checkin/today/pause" : "/me/checkin/today/resume")
             self.today = result
-            if let profile = self.profile { SharedStorage.saveSnapshot(profile: profile, today: result) }
+            if let profile = self.profile {
+                SharedStorage.saveSnapshot(profile: profile, today: result)
+                await LocalNotifications.sync(today: result, enabled: profile.enabled)
+            }
         }
     }
     func perform(_ work: () async throws -> Void) async {
@@ -85,27 +92,42 @@ final class AppState: ObservableObject {
             self.signedIn = false
             self.profile = nil
             self.today = nil
+            LocalNotifications.cancelReminders()
         }
     }
 
 
     func notificationPermission() async {
         await perform {
-            let allowed = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
-            let defaults = UserDefaults.standard
+            let center = UNUserNotificationCenter.current()
+            let status = await center.notificationSettings().authorizationStatus
+            var allowed = false
+            if status == .denied {
+                self.message = "Bildirim izni kapalı. Açılan Ayarlar ekranında Bildirimler'i açın; günlük hatırlatmalar ancak böyle çalışır."
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    await UIApplication.shared.open(url)
+                }
+            } else if status == .notDetermined {
+                allowed = try await center.requestAuthorization(options: [.alert, .sound, .badge])
+            } else {
+                allowed = status == .authorized || status == .provisional
+            }
             guard let userID = self.profile?.id else { return }
+            let defaults = UserDefaults.standard
             let key = "deviceID.\(userID)"
             let device = defaults.string(forKey: key) ?? UUID().uuidString
             defaults.set(device, forKey: key)
             let _: EmptyResponse = try await self.api.request("POST", "/me/devices", body: ["id": device, "permission": allowed ? "authorized" : "denied"])
+            if !allowed { return }
+            if let today = self.today {
+                await LocalNotifications.sync(today: today, enabled: self.profile?.enabled ?? false)
+            }
             struct Health: Decodable { let push_configured: Bool }
             let pushReady = (try? await self.api.request("GET", "/health", authenticated: false) as Health)?.push_configured ?? false
-            if allowed && pushReady && !APIClient.isLocal { UIApplication.shared.registerForRemoteNotifications() }
-            self.message = allowed
-                ? (pushReady && !APIClient.isLocal
-                    ? "Bildirim izni açık. Cihaz kaydı tamamlanınca bildirim alabilirsiniz."
-                    : "Bildirim izni açık. Anlık bildirim servisi henüz etkinleştirilmedi; durumları uygulamadan takip edebilirsiniz.")
-                : "Bildirim izni kapalı. Günlük durumunuzu uygulamada görebilirsiniz."
+            if pushReady && !APIClient.isLocal { UIApplication.shared.registerForRemoteNotifications() }
+            self.message = pushReady && !APIClient.isLocal
+                ? "Bildirim izni açık. Cihaz kaydı tamamlanınca bildirim alabilirsiniz."
+                : "Bildirim izni açık. Günlük hatırlatmalarınız cihazınızda zamanlanır."
         }
     }
 }

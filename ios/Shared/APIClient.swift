@@ -68,6 +68,7 @@ enum SharedStorage {
         defaults.removeObject(forKey: "snapshot")
         defaults.removeObject(forKey: "pending")
         defaults.removeObject(forKey: "profile")
+        LocalNotifications.cancelReminders()
         WidgetCenter.shared.reloadAllTimelines()
     }
     static func snapshot() -> WidgetSnapshot? {
