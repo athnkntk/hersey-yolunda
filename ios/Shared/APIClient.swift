@@ -67,14 +67,20 @@ enum SharedStorage {
         clearRegistration()
         defaults.removeObject(forKey: "snapshot")
         defaults.removeObject(forKey: "pending")
+        defaults.removeObject(forKey: "profile")
         WidgetCenter.shared.reloadAllTimelines()
     }
     static func snapshot() -> WidgetSnapshot? {
         guard let data = defaults.data(forKey: "snapshot") else { return nil }
         return try? JSONDecoder().decode(WidgetSnapshot.self, from: data)
     }
+    static func cachedProfile() -> Profile? {
+        guard let data = defaults.data(forKey: "profile") else { return nil }
+        return try? JSONDecoder().decode(Profile.self, from: data)
+    }
     static func saveSnapshot(profile: Profile, today: Today) {
         guard let current = try? session(), current.auth.userId == profile.id else { return }
+        defaults.set(try? JSONEncoder().encode(profile), forKey: "profile")
         guard profile.enabled else {
             defaults.removeObject(forKey: "snapshot")
             WidgetCenter.shared.reloadAllTimelines()
@@ -166,6 +172,7 @@ actor APIClient {
         SharedStorage.clearRegistration()
         SharedStorage.defaults.removeObject(forKey: "snapshot")
         SharedStorage.defaults.removeObject(forKey: "pending")
+        SharedStorage.defaults.removeObject(forKey: "profile")
         WidgetCenter.shared.reloadAllTimelines()
     }
     func logout() async throws {

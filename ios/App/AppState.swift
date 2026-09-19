@@ -35,7 +35,11 @@ final class AppState: ObservableObject {
             return
         }
         signedIn = (try? SharedStorage.session()) != nil
-        if signedIn { await reload() }
+        if signedIn {
+            if profile == nil { profile = SharedStorage.cachedProfile() }
+            if today == nil { today = SharedStorage.snapshot()?.today }
+            await reload()
+        }
     }
     func reload() async {
         loading = true
@@ -50,7 +54,7 @@ final class AppState: ObservableObject {
         } catch {
             if isCancellationError(error) { return }
             online = false
-            self.error = error.localizedDescription
+            if profile == nil { self.error = error.localizedDescription }
         }
     }
     func complete() async {
