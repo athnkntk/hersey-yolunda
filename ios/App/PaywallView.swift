@@ -8,7 +8,7 @@ struct PaywallView: View {
     @State private var showError = false
 
     private var priceText: String {
-        store.product?.displayPrice ?? "199,99 TL"
+        store.product?.displayPrice ?? "Yükleniyor..."
     }
 
     private var trialText: String {
@@ -44,7 +44,7 @@ struct PaywallView: View {
                             if await store.purchase() { dismiss() }
                             else if store.error != nil { showError = true }
                         }
-                    }.disabled(store.purchasing)
+                    }.disabled(store.purchasing || store.product == nil)
                         .accessibilityIdentifier("subscribeButton")
                     Button("Satın almayı geri yükle") {
                         Task {

@@ -95,7 +95,7 @@ struct CircleView: View {
         .refreshable { if store.isPremium { await load() } }
         .onChange(of: store.isPremium) { _, premium in if premium { Task { await load() } } }
         .onChange(of: scenePhase) { _, phase in if phase == .active && store.isPremium { Task { await load() } } }
-        .onReceive(NotificationCenter.default.publisher(for: .init("HYRemoteNotification"))) { _ in Task { await load() } }
+        .onReceive(NotificationCenter.default.publisher(for: .init("HYRemoteNotification"))) { _ in if store.isPremium { Task { await load() } } }
         .confirmationDialog("Bu kişiyle paylaşımı durdur?", isPresented: Binding(get: { selectedRelation != nil }, set: { if !$0 { selectedRelation = nil } }), titleVisibility: .visible) {
             Button("Paylaşımı durdur", role: .destructive) {
                 guard let relation = selectedRelation else { return }

@@ -137,7 +137,7 @@ struct NotificationsView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(notice.title).font(.headline)
                     Text(DateText.stamp(notice.createdAt)).foregroundStyle(.secondary)
-                    Text(notice.status == "queued" ? "Uygulama içi kayıt · Push henüz gönderilmedi" : notice.status).font(.callout).foregroundStyle(.secondary)
+                    Text(notice.status == "queued" ? "Uygulama içi kayıt · Push henüz gönderilmedi" : statusText(notice.status)).font(.callout).foregroundStyle(.secondary)
                 }.padding(.vertical, 8)
             }
         }.navigationTitle("Bildirimlerim")
@@ -220,6 +220,16 @@ struct DataRightsView: View {
             .onDisappear { exported = "" }
     }
 }
+func statusText(_ status: String) -> String {
+    switch status {
+    case "provider_accepted": return "Gönderildi"
+    case "suppressed": return "Gizlendi"
+    case "retryable_failed": return "Tekrar deneniyor"
+    case "permanently_failed": return "Gönderilemedi"
+    default: return status
+    }
+}
+
 struct ExportData: Codable {
     let profile: Profile
     let checkins: [ExportCheckIn]
