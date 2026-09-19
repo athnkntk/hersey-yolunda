@@ -213,7 +213,7 @@ struct HomeView: View {
                         if today.remindersEnabled == false { Text("Bugün isterseniz haber verebilirsiniz. Hatırlatma rutininiz yarın başlar.").font(.callout) }
                         else if today.state != "completed" { Text("Haber gelmezse ailenize bilgi: \(DateText.time(today.deadlineAt))").font(.callout) }
                     }
-                    NavigationLink { HistoryView(profileID: state.profile?.id ?? "") } label: {
+                    NavigationLink { HistoryView(profileID: state.profile?.id ?? "", subjectName: state.profile?.name ?? "") } label: {
                         Label("Geçmiş haberlerim", systemImage: "calendar").font(.title3).frame(minHeight: 56)
                     }
                     if !["completed", "cancelled"].contains(today.state) {

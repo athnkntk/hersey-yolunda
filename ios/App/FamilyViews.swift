@@ -40,19 +40,38 @@ struct CircleView: View {
                 Section { NavigationLink("Gelen daveti görüntüle") { AcceptInvitationView() } }
             }
             if store.isPremium {
-            Section("Yakınlarım") {
-                if relatives.isEmpty { Text("Henüz bağlı bir yakınınız yok. Davet kabul edilip paylaşım onaylandığında burada görünür.").foregroundStyle(.secondary) }
-                ForEach(relatives) { relative in
-                    NavigationLink { RelativeDetailView(relative: relative) } label: {
-                        HStack(spacing: 16) {
-                            Image(systemName: relative.isCompleted ? "checkmark.circle.fill" : "clock")
-                                .font(.title).foregroundStyle(relative.isCompleted ? Design.green : Design.amber)
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(relative.profile.name).font(.title3.bold())
-                                Text(relative.status())
-                                if let date = relative.today.completedAt { Text(DateText.time(date)).foregroundStyle(.secondary) }
-                            }
-                        }.padding(.vertical, 10)
+                Section("Yakınlarım") {
+                    if relatives.isEmpty { Text("Henüz bağlı bir yakınınız yok. Davet kabul edilip paylaşım onaylandığında burada görünür.").foregroundStyle(.secondary) }
+                    ForEach(relatives) { relative in
+                        NavigationLink { RelativeDetailView(relative: relative) } label: {
+                            HStack(spacing: 16) {
+                                Image(systemName: relative.isCompleted ? "checkmark.circle.fill" : "clock")
+                                    .font(.title).foregroundStyle(relative.isCompleted ? Design.green : Design.amber)
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(relative.profile.name).font(.title3.bold())
+                                    Text(relative.status())
+                                    if let date = relative.today.completedAt { Text(DateText.time(date)).foregroundStyle(.secondary) }
+                                }
+                            }.padding(.vertical, 10)
+                        }
+                    }
+                }
+                Section("Davetlerim") {
+                    ForEach(invitations) { invitation in
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(invitation.recipientName ?? "Davetiniz bekleniyor").font(.headline)
+                            if invitation.status == "awaiting_approval" {
+                                Text("Bu kişinin günlük haberlerinizi görmesini onaylıyor musunuz?")
+                                Button("Paylaşımı onayla") {
+                                    Task {
+                                        await state.perform {
+                                            let _: ActionResult = try await state.api.request("POST", "/invitations/\(invitation.id)/approve-sharing")
+                                            await load()
+                                        }
+                                    }
+                                }.frame(minHeight: 56)
+                            } else { Text("Bağlantı kurulmadan veri paylaşılmaz.").foregroundStyle(.secondary) }
+                        }
                     }
                 }
             }
@@ -66,35 +85,16 @@ struct CircleView: View {
                     }
                 }
             }
-            Section("Davetlerim") {
-                ForEach(invitations) { invitation in
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text(invitation.recipientName ?? "Davetiniz bekleniyor").font(.headline)
-                        if invitation.status == "awaiting_approval" {
-                            Text("Bu kişinin günlük haberlerinizi görmesini onaylıyor musunuz?")
-                            Button("Paylaşımı onayla") {
-                                Task {
-                                    await state.perform {
-                                        let _: ActionResult = try await state.api.request("POST", "/invitations/\(invitation.id)/approve-sharing")
-                                        await load()
-                                    }
-                                }
-                            }.frame(minHeight: 56)
-                        } else { Text("Bağlantı kurulmadan veri paylaşılmaz.").foregroundStyle(.secondary) }
-                    }
-                }
-            }
-            }
         }
         .navigationTitle("Ailem")
         .sheet(isPresented: $showPaywall) { PaywallView() }
         .task {
             await store.load()
-            if store.isPremium { await load() }
+            await load()
         }
-        .refreshable { if store.isPremium { await load() } }
-        .onChange(of: store.isPremium) { _, premium in if premium { Task { await load() } } }
-        .onChange(of: scenePhase) { _, phase in if phase == .active && store.isPremium { Task { await load() } } }
+        .refreshable { await load() }
+        .onChange(of: store.isPremium) { _, _ in Task { await load() } }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await load() } } }
         .onReceive(NotificationCenter.default.publisher(for: .init("HYRemoteNotification"))) { _ in if store.isPremium { Task { await load() } } }
         .confirmationDialog("Bu kişiyle paylaşımı durdur?", isPresented: Binding(get: { selectedRelation != nil }, set: { if !$0 { selectedRelation = nil } }), titleVisibility: .visible) {
             Button("Paylaşımı durdur", role: .destructive) {
@@ -112,12 +112,14 @@ struct CircleView: View {
     }
     private func load() async {
         do {
-            let list: Items<Relative> = try await state.api.request("GET", "/me/relatives")
             let circle: Items<Relationship> = try await state.api.request("GET", "/me/relationships")
-            let pending: Items<Invitation> = try await state.api.request("GET", "/invitations")
-            relatives = list.items
             relationships = circle.items
-            invitations = pending.items
+            if store.isPremium {
+                let list: Items<Relative> = try await state.api.request("GET", "/me/relatives")
+                let pending: Items<Invitation> = try await state.api.request("GET", "/invitations")
+                relatives = list.items
+                invitations = pending.items
+            }
         } catch { if !isCancellationError(error) { state.error = error.localizedDescription } }
     }
 }
@@ -241,7 +243,7 @@ struct RelativeDetailView: View {
                     Text("Kontrol: \(DateText.time(current.today.dueAt)) · Türkiye saati")
                     Text("Bu bilgi kişinin kendi beyanıdır; sağlık veya güvenlik doğrulaması değildir.").foregroundStyle(.secondary)
                 }
-                NavigationLink("Check-in geçmişi") { HistoryView(profileID: current.id) }
+                NavigationLink("Check-in geçmişi") { HistoryView(profileID: current.id, subjectName: current.profile.name) }
             } else { Text("Güncel durum henüz alınamadı. Yenilemek için aşağı çekin.") }
             Text("Haber gelmediğinde yakınınızı normal telefon görüşmesiyle arayabilirsiniz. Bu uygulama acil müdahale hizmeti değildir.")
         }.navigationTitle(relative.profile.name)
@@ -259,6 +261,7 @@ struct RelativeDetailView: View {
 struct HistoryView: View {
     @EnvironmentObject var state: AppState
     let profileID: String
+    let subjectName: String
     @State private var items: [HistoryItem] = []
     var body: some View {
         List {
@@ -268,15 +271,23 @@ struct HistoryView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(DateText.stamp(item.receivedAt)).font(.headline)
                         Text("İyi olduğunu bildirdi").foregroundStyle(.secondary)
+                        Text("\(sourceText(item.source)) · Yetkili yakınlarla paylaşıldı").font(.caption).foregroundStyle(.secondary)
                     }.padding(.vertical, 8)
                 } icon: { Image(systemName: "checkmark.circle.fill").foregroundStyle(Design.green) }
             }
-        }.navigationTitle("Geçmiş")
+        }.navigationTitle("\(subjectName) · Geçmiş")
             .task {
                 do {
                     let response: Items<HistoryItem> = try await state.api.request("GET", "/profiles/\(profileID)/checkins")
                     items = response.items
                 } catch { if !isCancellationError(error) { state.error = error.localizedDescription } }
             }
+    }
+}
+
+func sourceText(_ source: String) -> String {
+    switch source {
+    case "ios_widget": return "Widget'tan"
+    default: return "Uygulamadan"
     }
 }
