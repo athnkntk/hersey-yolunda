@@ -97,7 +97,14 @@ export class Database {
   private tail: Promise<unknown> = Promise.resolve();
 
   constructor(url?: string, directory?: string) {
-    if (url) this.pool = new Pool({ connectionString: url, ssl: url.includes('sslmode=require') ? {} : undefined });
+    if (url) {
+      const ssl = url.includes('sslmode=verify-full')
+        ? {}
+        : url.includes('sslmode')
+          ? { rejectUnauthorized: false }
+          : undefined;
+      this.pool = new Pool({ connectionString: url, ssl });
+    }
     else this.embedded = new PGlite(directory);
   }
 
