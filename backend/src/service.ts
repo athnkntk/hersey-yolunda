@@ -24,10 +24,11 @@ export interface Options {
   clock?: () => Date;
   pushConfigured?: boolean;
   tickSecret?: string;
+  pushWorker?: { run(): Promise<void> };
 }
 
 export class Service {
-  constructor(public database: Database, private options: Options) {
+  constructor(public database: Database, public options: Options) {
     if (options.encryptionKey.length !== 32) throw new Error('Encryption key must be 32 bytes');
   }
   now() { return this.options.clock?.() ?? new Date(); }
@@ -105,7 +106,8 @@ export class Service {
     for (const relation of relations) {
       const preference = await this.one(db, 'SELECT * FROM preferences WHERE user_id=$1', [relation.viewer_id]);
       if ((type === 'completed' && preference?.success === false) || (type === 'missed' && preference?.missed === false)) continue;
-      await db.query('INSERT INTO notifications(id,occurrence_id,recipient_id,relationship_id,type,created_at,available_at) VALUES($1,$2,$3,$4,$5,$6,$6) ON CONFLICT DO NOTHING',
+      await db.query(`INSERT INTO notifications(id,occurrence_id,recipient_id,relationship_id,type,created_at,available_at) VALUES($1,$2,$3,$4,$5,$6,$6)
+        ON CONFLICT(occurrence_id,recipient_id,type) DO UPDATE SET status='queued',relationship_id=$4,available_at=$6 WHERE notifications.status='suppressed'`,
         [id(), occurrence.id, relation.viewer_id, relation.id, type, this.now()]);
       eligible++;
     }
@@ -121,6 +123,7 @@ export class Service {
         const input = z.object({ secret: z.string().min(20).max(200) }).parse(body);
         if (!timingSafeEqual(Buffer.from(hash(input.secret)), Buffer.from(hash(tickSecret)))) fail(403, 'invalid_secret', 'Zamanlayıcı anahtarı geçersiz.');
         await this.tick();
+        await this.options.pushWorker?.run();
         return { ok: true, ran_at: this.now().toISOString() };
       }
       fail(404, 'not_found', 'İşlem bulunamadı.');
@@ -340,7 +343,7 @@ export class Service {
         const input = z.object({ id: uuid, token: z.string().regex(/^[a-fA-F0-9]{32,512}$/).optional(), permission: z.enum(['authorized', 'denied', 'not_determined']) }).parse(body);
         const device = await this.one(db, 'SELECT user_id FROM devices WHERE id=$1', [input.id]);
         if (device && device.user_id !== user.id) fail(403, 'forbidden', 'Cihaz kaydı kullanılamıyor.');
-        await db.query('INSERT INTO devices(id,user_id,token_encrypted,permission,updated_at,session_family_id) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(id) DO UPDATE SET token_encrypted=$3,permission=$4,updated_at=$5,session_family_id=$6', [input.id, user.id, input.token ? this.encrypt(input.token) : null, input.permission, this.now(), session.family_id]);
+        await db.query('INSERT INTO devices(id,user_id,token_encrypted,permission,updated_at,session_family_id) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(id) DO UPDATE SET token_encrypted=COALESCE($3,devices.token_encrypted),permission=$4,updated_at=$5,session_family_id=$6', [input.id, user.id, input.token ? this.encrypt(input.token) : null, input.permission, this.now(), session.family_id]);
         return { ok: true };
       }
       if (path === '/me/sessions' && method === 'GET') return { items: (await db.query('SELECT id,device_name,created_at,id=$2 AS current FROM sessions WHERE user_id=$1 AND NOT revoked AND refresh_expires>$3', [user.id, session.id, this.now()])).rows };
@@ -371,7 +374,7 @@ export class Service {
     const exists = await this.one(db, 'SELECT id FROM relationships WHERE subject_id=$1 AND viewer_id=$2 AND active', [subject, viewer]);
     if (exists) return;
     const count = await this.one(db, 'SELECT count(*) AS count FROM relationships WHERE subject_id=$1 AND active', [subject]);
-    if (Number(count.count) >= 2) fail(409, 'circle_limit', 'Ücretsiz Güven Çemberinizde iki yakın bulunabilir.');
+    if (Number(count.count) >= 10) fail(409, 'circle_limit', 'Güven Çemberiniz en fazla on yakından oluşabilir.');
     await db.query('INSERT INTO relationships VALUES($1,$2,$3,$4,true,$5)', [id(), subject, viewer, label, this.now()]);
     await this.audit(db, subject, 'relationship_authorized');
   }
@@ -394,7 +397,8 @@ export class Service {
         const inserted = await db.query('INSERT INTO reminders VALUES($1,$2,$3) ON CONFLICT DO NOTHING RETURNING *', [row.id, step, this.now()]);
         if (inserted.rows.length) {
           await db.query("UPDATE occurrences SET state='reminded' WHERE id=$1", [row.id]);
-          await db.query('INSERT INTO notifications(id,occurrence_id,recipient_id,type,created_at,available_at) VALUES($1,$2,$3,$4,$5,$5) ON CONFLICT DO NOTHING', [id(), row.id, user.id, `reminder_${step}`, this.now()]);
+          await db.query(`INSERT INTO notifications(id,occurrence_id,recipient_id,type,created_at,available_at) VALUES($1,$2,$3,$4,$5,$5)
+            ON CONFLICT(occurrence_id,recipient_id,type) DO UPDATE SET status='queued',available_at=$5 WHERE notifications.status='suppressed'`, [id(), row.id, user.id, `reminder_${step}`, this.now()]);
         }
       }
       await db.query("UPDATE notifications SET status='suppressed' WHERE status IN ('queued','retryable_failed') AND occurrence_id IN (SELECT id FROM occurrences WHERE closes_at<=$1)", [this.now()]);

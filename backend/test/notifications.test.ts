@@ -97,3 +97,28 @@ test('logout removes the device token and prevents queued delivery', async () =>
   assert.equal(devices.rows[0].token_encrypted, null);
   assert.equal(devices.rows[0].permission, 'denied');
 });
+test('re-registering a device without a token keeps the stored push token', async () => {
+  const owner = await user();
+  const device = randomUUID();
+  await service.request('POST', '/me/devices', { id: device, token: 'b'.repeat(64), permission: 'authorized' }, owner.access_token);
+  await service.request('POST', '/me/devices', { id: device, permission: 'authorized' }, owner.access_token);
+  const row = await db.transaction(tx => tx.query('SELECT token_encrypted FROM devices WHERE id=$1', [device]));
+  assert.ok(row.rows[0].token_encrypted);
+});
+test('missed alert suppressed by pause is re-queued after resume', async () => {
+  now = new Date('2026-09-21T05:30:00Z');
+  const subject = await user(), viewer = await user();
+  const invite = await service.request('POST', '/invitations', { direction: 'request_theirs', label: 'Yakınım' }, viewer.access_token);
+  await service.request('POST', `/invitations/${invite.id}/accept`, { token: invite.token }, subject.access_token);
+  now = new Date('2026-09-21T10:30:00Z');
+  const subjectRefreshed = await service.request('POST', '/auth/refresh', { refresh_token: subject.refresh_token });
+  const viewerRefreshed = await service.request('POST', '/auth/refresh', { refresh_token: viewer.refresh_token });
+  await service.tick();
+  let notices = await service.request('GET', '/me/notifications', {}, viewerRefreshed.access_token);
+  assert.equal(notices.items.filter((n: any) => n.type === 'missed').length, 1);
+  await service.request('POST', '/me/checkin/today/pause', {}, subjectRefreshed.access_token);
+  await service.request('POST', '/me/checkin/today/resume', {}, subjectRefreshed.access_token);
+  await service.tick();
+  notices = await service.request('GET', '/me/notifications', {}, viewerRefreshed.access_token);
+  assert.equal(notices.items.filter((n: any) => n.type === 'missed').length, 1);
+});

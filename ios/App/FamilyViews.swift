@@ -118,7 +118,7 @@ struct CircleView: View {
             relatives = list.items
             relationships = circle.items
             invitations = pending.items
-        } catch { state.error = error.localizedDescription }
+        } catch { if !isCancellationError(error) { state.error = error.localizedDescription } }
     }
 }
 
@@ -252,7 +252,7 @@ struct RelativeDetailView: View {
     }
     private func refresh() async {
         do { current = try await state.api.request("GET", "/profiles/\(relative.id)/status") }
-        catch { current = nil; state.error = error.localizedDescription }
+        catch { current = nil; if !isCancellationError(error) { state.error = error.localizedDescription } }
     }
 }
 
@@ -276,7 +276,7 @@ struct HistoryView: View {
                 do {
                     let response: Items<HistoryItem> = try await state.api.request("GET", "/profiles/\(profileID)/checkins")
                     items = response.items
-                } catch { state.error = error.localizedDescription }
+                } catch { if !isCancellationError(error) { state.error = error.localizedDescription } }
             }
     }
 }

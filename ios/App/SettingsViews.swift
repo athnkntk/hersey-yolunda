@@ -87,7 +87,7 @@ struct ScheduleView: View {
             time = Calendar.current.date(from: DateComponents(hour: schedule.next.minute / 60, minute: schedule.next.minute % 60)) ?? Date()
             grace = schedule.next.grace
             loaded = true
-        } catch { state.error = error.localizedDescription }
+        } catch { if !isCancellationError(error) { state.error = error.localizedDescription } }
     }
 }
 
@@ -123,7 +123,7 @@ struct PreferencesView: View {
     }
     private func load() async {
         do { preferences = try await state.api.request("GET", "/me/notification-preferences"); loaded = true }
-        catch { state.error = error.localizedDescription }
+        catch { if !isCancellationError(error) { state.error = error.localizedDescription } }
     }
 }
 
@@ -145,7 +145,7 @@ struct NotificationsView: View {
                 do {
                     let response: Items<Notice> = try await state.api.request("GET", "/me/notifications")
                     items = response.items
-                } catch { state.error = error.localizedDescription }
+                } catch { if !isCancellationError(error) { state.error = error.localizedDescription } }
             }
     }
 }
@@ -172,7 +172,7 @@ struct SessionsView: View {
         }.navigationTitle("Oturumlar")
             .task {
                 do { let response: Items<SessionInfo> = try await state.api.request("GET", "/me/sessions"); items = response.items }
-                catch { state.error = error.localizedDescription }
+                catch { if !isCancellationError(error) { state.error = error.localizedDescription } }
             }
     }
 }

@@ -1499,6 +1499,18 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 - Build 1 (0.1.0/1) yüklendi; iPad multitasking reddi → `UIRequiresFullScreen=true` eklendi. Build 2 (0.1.0/2) yüklendi — içinde **widget "BEN İYİYİM" buton görünürlük düzeltmesi** var (VStack'teki `.foregroundStyle(green)` buton yazısını yeşil yapıyordu; `.foregroundStyle(.white)` eklendi).
 - Upload komutu: `xcodebuild -exportArchive -exportOptionsPlist (method app-store-connect, destination upload) -authenticationKeyPath/ID/IssuerID`. İnceleme için metadata/ekran görüntüsü/gizlilik formu web'de doldurulup build 2 seçilecek.
 
+#### Bildirim sistemi denetimi + CancellationError düzeltmesi — 19 Eylül 2026
+
+- **Kullanıcı raporu:** Anasayfada `Swift.CancellationError` alert'i. Kök neden: `AppState.reload()`/`perform()` catch'leri iptal edilen task'ı `error`'a yazıyordu. Düzeltme: `isCancellationError(_)` (CancellationError + URLError.cancelled) filtresi; `reload` iptalde `online=false` bile yapmıyor (arka plana geçişte yanlış çevrimdışı gösterimi engellendi). Aynı filtre `FamilyViews`, `SettingsViews`, `HerseyYolundaApp`, `StoreKitManager` catch'lerine de uygulandı.
+- **Kritik backend bug'ı:** `SCHEDULER_MODE=external`'da `NotificationWorker` hiç çağrılmıyordu — `worker.run()` sadece internal scheduler'daydı; `/tick` yalnız `service.tick()` koşuyordu. APNs açılsa bile delivery'ler sonsuza dek kuyrukta kalırdı. `Options.pushWorker` eklendi; `/tick` artık tick sonrası worker'ı da koşturuyor. Test: `external tick dispatches the push worker after scheduling`.
+- **Token silme bug'ı:** `POST /me/devices` ON CONFLICT'te `token_encrypted=$3` yazıyordu — token'sız izin güncellemesi mevcut APNs token'ını NULL yapıyordu. `COALESCE($3, devices.token_encrypted)` ile düzeltildi. Test: `re-registering a device without a token keeps the stored push token`.
+- **Pause→resume sessizliği:** `INSERT ... ON CONFLICT DO NOTHING` yüzünden pause'da `suppressed` olan bildirim resume sonrası asla dirilmiyordu (alerted→pause→resume→hâlâ miss senaryosunda aile uyarılmazdı). `notify()` ve reminder insert'leri artık `ON CONFLICT DO UPDATE ... WHERE status='suppressed'` ile kuyruğa geri alıyor. Test: `missed alert suppressed by pause is re-queued after resume`.
+- **Çember sınırı:** `circle_limit` 2→10 (Premium "sınırsız" vaadiyle çelişiyordu; 10 kötüye kullanım sınırı olarak korundu).
+- **iOS dürüstlük düzeltmesi:** `notificationPermission()` artık `GET /health`'ten `push_configured` okuyor; backend APNs yapılandırılmamışsa `registerForRemoteNotifications` çağrılmıyor ve kullanıcıya "anlık bildirim servisi henüz etkinleştirilmedi" deniyor (önceden "kayıt tamamlanınca bildirim alırsınız" diyordu ama aps-environment entitlement'ı da yoktu → kayıt zaten düşüyordu).
+- **Doğrulandı (bug değil):** UNIQUE(occurrence_id,recipient_id,type) tekrar bildirimleri engelliyor; worker suppression kuralları (inaktif ilişki, kapanan occurrence, tercih kapalı, revoked izin) doğru; retry backoff + lease + invalid-device(410→token NULL) sağlam; `event_id` = notification.id iOS `/opened` ile uyumlu; timezone Europe/Istanbul sabit (kullanıcı timezone'u değiştirilemiyor, TR pazarı için tutarlı — sınırlama olarak kayıtlı).
+- **Hâlâ açık:** Production'da `APNS_ENABLED=false` (`.p8` anahtarı yok) → push teslimatı yok; kuyruk oluşuyor ama gönderilmiyor. APNs açılırken `aps-environment` entitlement'ı da eklenmeli. FCM token UserDefaults'ta duruyor ama backend doğrudan APNs kullanıyor (FCM tüketilmiyor).
+- Doğrulama: `npm run verify` 36/36 geçti; iOS `xcodebuild build` (iPhone 17 Pro sim, ad-hoc sign) SUCCEEDED.
+
 ## 34. Değişiklik geçmişi
 
 | Sürüm | Tarih | Değişiklik |

@@ -105,7 +105,7 @@ struct WelcomeView: View {
                     enabled = pending.enabled
                     hasPending = true
                 }
-            } catch { state.error = error.localizedDescription }
+            } catch { if !isCancellationError(error) { state.error = error.localizedDescription } }
         }
         .confirmationDialog("Yeni hesap oluşturma denemesi başlatılsın mı?", isPresented: $confirmReset, titleVisibility: .visible) {
             Button("Yeni deneme başlat") { SharedStorage.clearRegistration(); hasPending = false }
@@ -121,7 +121,7 @@ struct WelcomeView: View {
             if !enabled || !state.invitationToken.isEmpty { state.tab = 1 }
         } catch {
             hasPending = (try? SharedStorage.registration()) != nil
-            state.error = error.localizedDescription
+            if !isCancellationError(error) { state.error = error.localizedDescription }
         }
     }
 }

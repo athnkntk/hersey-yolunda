@@ -29,7 +29,7 @@ final class StoreKitManager: ObservableObject {
             product = try await Product.products(for: [Self.productID]).first
             if product == nil { error = "Abonelik bilgisi yüklenemedi. Lütfen yeniden deneyin." }
         } catch {
-            self.error = "Mağazaya ulaşılamadı. Bağlantınızı kontrol edin."
+            if !isCancellationError(error) { self.error = "Mağazaya ulaşılamadı. Bağlantınızı kontrol edin." }
         }
         await refreshEntitlement()
     }
@@ -74,7 +74,7 @@ final class StoreKitManager: ObservableObject {
                 return false
             }
         } catch {
-            self.error = "Satın alma tamamlanamadı. Ücret alınmadıysa yeniden deneyin."
+            if !isCancellationError(error) { self.error = "Satın alma tamamlanamadı. Ücret alınmadıysa yeniden deneyin." }
             return false
         }
     }
@@ -87,7 +87,7 @@ final class StoreKitManager: ObservableObject {
             await refreshEntitlement()
             if !isPremium { self.error = "Bu Apple hesabında etkin abonelik bulunamadı." }
         } catch {
-            self.error = "Geri yükleme başarısız. Apple hesabınızı kontrol edin."
+            if !isCancellationError(error) { self.error = "Geri yükleme başarısız. Apple hesabınızı kontrol edin." }
         }
     }
 

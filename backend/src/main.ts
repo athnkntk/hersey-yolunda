@@ -58,6 +58,7 @@ async function main() {
     keyId: process.env.APNS_KEY_ID!, teamId: process.env.APNS_TEAM_ID!, privateKey: process.env.APNS_PRIVATE_KEY!,
     topic: process.env.APNS_TOPIC!, sandbox: process.env.APNS_SANDBOX === 'true'
   }), value => service.decrypt(value)) : null;
+  service.options.pushWorker = worker ?? undefined;
   let ticking = false;
   const timer = schedulerMode === 'internal'
     ? setInterval(async () => {

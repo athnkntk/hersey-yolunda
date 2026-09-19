@@ -48,6 +48,7 @@ final class AppState: ObservableObject {
             online = true
             SharedStorage.saveSnapshot(profile: user, today: status)
         } catch {
+            if isCancellationError(error) { return }
             online = false
             self.error = error.localizedDescription
         }
@@ -60,7 +61,7 @@ final class AppState: ObservableObject {
         do {
             self.today = try await api.checkIn(profile: profile, today: today, source: "app")
             online = true
-        } catch { self.error = error.localizedDescription }
+        } catch { if !isCancellationError(error) { self.error = error.localizedDescription } }
     }
     func pause(_ value: Bool) async {
         await perform {
@@ -72,7 +73,7 @@ final class AppState: ObservableObject {
     func perform(_ work: () async throws -> Void) async {
         loading = true
         defer { loading = false }
-        do { try await work() } catch { self.error = error.localizedDescription }
+        do { try await work() } catch { if !isCancellationError(error) { self.error = error.localizedDescription } }
     }
     func logout() async {
         await perform {
@@ -82,6 +83,8 @@ final class AppState: ObservableObject {
             self.today = nil
         }
     }
+
+
     func notificationPermission() async {
         await perform {
             let allowed = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
@@ -91,10 +94,21 @@ final class AppState: ObservableObject {
             let device = defaults.string(forKey: key) ?? UUID().uuidString
             defaults.set(device, forKey: key)
             let _: EmptyResponse = try await self.api.request("POST", "/me/devices", body: ["id": device, "permission": allowed ? "authorized" : "denied"])
-            if allowed && !APIClient.isLocal { UIApplication.shared.registerForRemoteNotifications() }
-            self.message = allowed ? (APIClient.isLocal ? "Bildirim izni açık. Bu yerel sürümde APNs gönderimi henüz etkin değil." : "Bildirim izni açık. Cihaz kaydı tamamlanınca bildirim alabilirsiniz.") : "Bildirim izni kapalı. Günlük durumunuzu uygulamada görebilirsiniz."
+            struct Health: Decodable { let push_configured: Bool }
+            let pushReady = (try? await self.api.request("GET", "/health", authenticated: false) as Health)?.push_configured ?? false
+            if allowed && pushReady && !APIClient.isLocal { UIApplication.shared.registerForRemoteNotifications() }
+            self.message = allowed
+                ? (pushReady && !APIClient.isLocal
+                    ? "Bildirim izni açık. Cihaz kaydı tamamlanınca bildirim alabilirsiniz."
+                    : "Bildirim izni açık. Anlık bildirim servisi henüz etkinleştirilmedi; durumları uygulamadan takip edebilirsiniz.")
+                : "Bildirim izni kapalı. Günlük durumunuzu uygulamada görebilirsiniz."
         }
     }
+}
+
+func isCancellationError(_ error: Error) -> Bool {
+    if error is CancellationError { return true }
+    return (error as? URLError)?.code == .cancelled
 }
 
 enum Design {
