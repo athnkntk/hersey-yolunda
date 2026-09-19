@@ -21,10 +21,11 @@ services:
         value: 0.0.0.0
       - key: SCHEDULER_MODE
         value: external
+      # Üretim veritabanı Supabase Postgres'te; bağlantı dizesi Render panelinde
+      # elle tanımlı. fromDatabase kullanma: blueprint sync, DATABASE_URL'i
+      # eski Render Postgres'e geri çevirip canlı veriyi koparabilir.
       - key: DATABASE_URL
-        fromDatabase:
-          name: hersey-yolunda-db
-          property: connectionString
+        sync: false
       - key: DATA_ENCRYPTION_KEY
         sync: false
       - key: LOOKUP_KEY
