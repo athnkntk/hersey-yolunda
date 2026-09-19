@@ -1511,6 +1511,18 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 - **Hâlâ açık:** Production'da `APNS_ENABLED=false` (`.p8` anahtarı yok) → push teslimatı yok; kuyruk oluşuyor ama gönderilmiyor. APNs açılırken `aps-environment` entitlement'ı da eklenmeli. FCM token UserDefaults'ta duruyor ama backend doğrudan APNs kullanıyor (FCM tüketilmiyor).
 - Doğrulama: `npm run verify` 36/36 geçti; iOS `xcodebuild build` (iPhone 17 Pro sim, ad-hoc sign) SUCCEEDED.
 
+#### UI akışı + yerel bildirimler — 19 Eylül 2026
+
+- **Cache-first açılış:** `restore()` artık `SharedStorage`'dan son `profile`+`today`'i anında yükler, `reload()` arka planda tazeler. Render soğuk açılışı/iptal artık "Güncel durum alınamadı" ekranı göstermez; hata alert'i yalnızca hiç cache yoksa çıkar. Profil cache'i logout/silme/yeni hesapta temizlenir.
+- **Geçmiş netliği:** HistoryView başlığı gönderen adını, satır altı kaynağı (Uygulamadan/Widget'tan) ve "Yetkili yakınlarla paylaşıldı" bilgisini gösterir.
+- **Gizlilik:** "Benim haberimi alanlar" bölümü artık ücretsiz kullanıcıya da görünür — kendi verisini kimin izlediğini bilmek premium özellik değildir. `CircleView` her zaman `/me/relationships` çeker; `relatives`/`invitations` premium'da kalır.
+- **LocalNotifications (ios/Shared):** Cihaz üzeri hatırlatmalar — kontrol saatinde, +60dk "aileniz sizi merak ediyor olabilir", +180dk süre uyarısı, deadline'da "süre doldu" (trustedContacts>0 ise). Her reload/check-in/pause'da resync; logout/session expiry/silme/widget check-in'de iptal. APNs'siz çalışır.
+- **İzin akışı:** `notificationPermission()` mevcut durumu okur — `denied` ise iOS Ayarlar'ı açar; `notDetermined` ise sistem diyaloğu; `authorized` ise local sync + backend `push_configured` true ise APNs kaydı. Hesap oluşturma sonrası otomatik istenir.
+- **Paywall:** Ürün yüklenmeden sabit "199,99 TL" gösterimi kaldırıldı ("Yükleniyor..."), buton ürün gelene dek pasif. Bildirimlerim statüleri Türkçe'ye çevrildi.
+- **project.yml:** `DEVELOPMENT_TEAM` `5XR3QN2NJ6`→`2HBFPNCMR8` (5XR3QN2NJ6 ASC API Key ID'ydi, takım değil).
+- Doğrulama: iOS simülatör + Release cihaz derlemeleri SUCCEEDED; cihaza kuruldu.
+- **Açık:** Aileye giden push'lar hâlâ APNs anahtarına bağlı (`push_configured=false`); kendi hatırlatmaları local olduğu için kullanıcı tarafında çalışır durumda.
+
 ## 34. Değişiklik geçmişi
 
 | Sürüm | Tarih | Değişiklik |
