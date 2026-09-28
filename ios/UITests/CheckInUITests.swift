@@ -17,7 +17,7 @@ final class CheckInUITests: XCTestCase {
         XCTAssertTrue(checkin.waitForExistence(timeout: 15))
         XCTAssertTrue(checkin.isEnabled)
         checkin.tap()
-        XCTAssertTrue(app.otherElements["completedCard"].waitForExistence(timeout: 15) || app.staticTexts["Bugün haber verdiniz."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.otherElements["completedCard"].waitForExistence(timeout: 15))
         XCTAssertFalse(app.buttons["checkInButton"].exists)
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "Check-in backend onayı"

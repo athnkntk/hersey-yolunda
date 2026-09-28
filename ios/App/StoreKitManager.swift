@@ -8,6 +8,7 @@ final class StoreKitManager: ObservableObject {
     @Published var product: Product?
     @Published var isPremium = false
     @Published var purchasing = false
+    @Published var trialEligible = false
     @Published var error: String?
 
     private var updatesTask: Task<Void, Never>?
@@ -27,6 +28,7 @@ final class StoreKitManager: ObservableObject {
         guard product == nil else { return }
         do {
             product = try await Product.products(for: [Self.productID]).first
+            await refreshTrialEligibility()
             if product == nil { error = "Abonelik bilgisi yüklenemedi. Lütfen yeniden deneyin." }
         } catch {
             if !isCancellationError(error) { self.error = "Mağazaya ulaşılamadı. Bağlantınızı kontrol edin." }
@@ -89,6 +91,11 @@ final class StoreKitManager: ObservableObject {
         } catch {
             if !isCancellationError(error) { self.error = "Geri yükleme başarısız. Apple hesabınızı kontrol edin." }
         }
+    }
+
+    private func refreshTrialEligibility() async {
+        guard let subscription = product?.subscription, subscription.introductoryOffer?.paymentMode == .freeTrial else { trialEligible = false; return }
+        trialEligible = await subscription.isEligibleForIntroOffer
     }
 
     private func observeTransactions() -> Task<Void, Never> {

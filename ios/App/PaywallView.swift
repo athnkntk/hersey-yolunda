@@ -12,10 +12,7 @@ struct PaywallView: View {
     }
 
     private var trialText: String {
-        if store.product?.subscription?.introductoryOffer != nil {
-            return "İlk 1 ay ücretsiz deneme dahildir."
-        }
-        return ""
+        store.trialEligible ? "İlk 1 ay ücretsiz deneme dahildir." : ""
     }
 
     var body: some View {
@@ -36,10 +33,12 @@ struct PaywallView: View {
                         if !trialText.isEmpty {
                             Text(trialText).font(.title3).foregroundStyle(Design.green)
                         }
-                        Text("Deneme bitiminde aylık \(priceText) otomatik yenilenir. İstediğiniz zaman App Store hesabınızdan iptal edebilirsiniz; iptal, dönem sonuna kadar erişimi korur.")
+                        Text(store.trialEligible
+                             ? "Deneme bitiminde aylık \(priceText) otomatik yenilenir. İstediğiniz zaman App Store hesabınızdan iptal edebilirsiniz; iptal, dönem sonuna kadar erişimi korur."
+                             : "Aylık \(priceText) otomatik yenilenir. İstediğiniz zaman App Store hesabınızdan iptal edebilirsiniz; iptal, dönem sonuna kadar erişimi korur.")
                             .font(.callout).foregroundStyle(.secondary)
                     }
-                    PrimaryButton(title: store.purchasing ? "İşleniyor" : "1 Ay Ücretsiz Başla", busy: store.purchasing) {
+                    PrimaryButton(title: store.purchasing ? "İşleniyor" : (store.trialEligible ? "1 Ay Ücretsiz Başla" : "Aylık Abone Ol"), busy: store.purchasing) {
                         Task {
                             if await store.purchase() { dismiss() }
                             else if store.error != nil { showError = true }

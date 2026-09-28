@@ -19,6 +19,9 @@ struct HerseyYolundaApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: .init("HYRemoteNotification"))) { _ in
                     if state.signedIn { state.tab = 1; Task { await state.reload() } }
                 }
+                .onReceive(NotificationCenter.default.publisher(for: .init("HYSelfReminder"))) { _ in
+                    if state.signedIn { state.tab = 0; Task { await state.reload() } }
+                }
                 .onReceive(NotificationCenter.default.publisher(for: .init("HYNotificationRegistrationFailed"))) { _ in
                     state.message = "Cihazınız bildirim servisine kaydedilemedi. Günlük haberlerinizi uygulamadan kontrol edebilirsiniz."
                 }
@@ -184,7 +187,8 @@ struct HomeView: View {
                             if let date = today.completedAt { Text(DateText.time(date)).font(.title2.monospacedDigit()) }
                             Text(today.trustedContacts > 0 ? "Aileniz uygulamada iyi olduğunuzu görebilir." : "Haberiniz kaydedildi. Ailenize haber vermek için bir yakınınızı ekleyin.")
                                 .font(.title3)
-                        }.accessibilityIdentifier("completedCard")
+                        }.accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("completedCard")
                     } else if today.state == "cancelled" {
                         InfoCard {
                             Label("Bugün ara verdiniz", systemImage: "pause.circle").font(.title2.bold())
@@ -202,7 +206,7 @@ struct HomeView: View {
                         }
                         .buttonStyle(.plain).foregroundStyle(.white)
                         .background(Design.green, in: RoundedRectangle(cornerRadius: 32))
-                        .disabled(state.sending || state.loading)
+                        .disabled(state.sending)
                         .accessibilityLabel("Bugün iyi olduğumu bildir").accessibilityIdentifier("checkInButton")
                     }
                     InfoCard {

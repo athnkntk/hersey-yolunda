@@ -49,6 +49,11 @@ struct ScheduleView: View {
     @State private var time = Calendar.current.date(from: DateComponents(hour: 9)) ?? Date()
     @State private var grace = 240
     @State private var loaded = false
+    private var minuteOfDay: Int {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: time)
+        return (components.hour ?? 9) * 60 + (components.minute ?? 0)
+    }
+    private var fitsInDay: Bool { Schedule.fitsInDay(minute: minuteOfDay, grace: grace) }
     var body: some View {
         Form {
             Section("Türkiye saati") {
@@ -60,18 +65,20 @@ struct ScheduleView: View {
                     Text("6 saat").tag(360)
                 }
                 Text("Haberiniz gelmezse bekleme süresi sonunda yakınlarınıza bilgi verilir. Saat ve bekleme süresi aynı güne sığmalıdır.")
+                if !fitsInDay {
+                    Text("Bu saat ve bekleme süresi aynı güne sığmıyor. Daha erken bir saat veya daha kısa bekleme süresi seçin.").foregroundStyle(Design.amber)
+                }
             }
             Section {
                 Button("Programı kaydet") {
-                    let components = Calendar.current.dateComponents([.hour, .minute], from: time)
                     Task {
                         await state.perform {
-                            let _: EmptyResponse = try await state.api.request("PUT", "/me/checkin-schedule", body: ["minute": (components.hour ?? 9) * 60 + (components.minute ?? 0), "grace": grace])
+                            let _: EmptyResponse = try await state.api.request("PUT", "/me/checkin-schedule", body: ["minute": minuteOfDay, "grace": grace])
                             state.message = "Yeni programınız yarından itibaren geçerli. Bugünkü kontrolünüz değişmedi."
                             await state.reload()
                         }
                     }
-                }.frame(minHeight: 56).disabled(!loaded || state.loading)
+                }.frame(minHeight: 56).disabled(!loaded || state.loading || !fitsInDay)
                 if !loaded {
                     Text("Mevcut programınız alınamadı. Kaydetmeden önce yeniden yükleyin.").foregroundStyle(Design.amber)
                     Button("Yeniden yükle") { Task { await load() } }.frame(minHeight: 56).disabled(state.loading)

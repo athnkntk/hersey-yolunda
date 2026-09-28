@@ -122,8 +122,7 @@ final class AppState: ObservableObject {
             if let today = self.today {
                 await LocalNotifications.sync(today: today, enabled: self.profile?.enabled ?? false)
             }
-            struct Health: Decodable { let push_configured: Bool }
-            let pushReady = (try? await self.api.request("GET", "/health", authenticated: false) as Health)?.push_configured ?? false
+            let pushReady = (try? await self.api.request("GET", "/health", authenticated: false) as Health)?.pushConfigured ?? false
             if pushReady && !APIClient.isLocal { UIApplication.shared.registerForRemoteNotifications() }
             self.message = pushReady && !APIClient.isLocal
                 ? "Bildirim izni açık. Cihaz kaydı tamamlanınca bildirim alabilirsiniz."
@@ -145,6 +144,7 @@ enum Design {
 }
 
 struct PrimaryButton: View {
+    @Environment(\.isEnabled) private var isEnabled
     let title: String
     var busy = false
     let action: () -> Void
@@ -159,6 +159,7 @@ struct PrimaryButton: View {
         .buttonStyle(.plain)
         .foregroundStyle(.white)
         .background(Design.green, in: RoundedRectangle(cornerRadius: 20))
+        .opacity(isEnabled || busy ? 1 : 0.5)
         .disabled(busy)
     }
 }

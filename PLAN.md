@@ -1523,6 +1523,23 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 - Doğrulama: iOS simülatör + Release cihaz derlemeleri SUCCEEDED; cihaza kuruldu.
 - **Açık:** Aileye giden push'lar hâlâ APNs anahtarına bağlı (`push_configured=false`); kendi hatırlatmaları local olduğu için kullanıcı tarafında çalışır durumda.
 
+#### iOS denetimi, Aşama 1 düzeltmeleri ve 1.0.1 gönderimi — 28 Eylül 2026
+
+- **Denetim:** Tüm iOS kaynak kodu (App/Shared/Widget/Tests/UITests), backend sözleşmesi ve testler incelendi; 8 Yüksek, 15 Orta, 17 Düşük bulgu raporlandı (kesin/olası ayrımıyla). Bu turda yalnız Aşama 1 uygulandı; Aşama 2-4 (saat sapması Y3, refresh tek-uçuş/backend grace Y6, oturum düşüş ekranı Y7, merkezi ön plan yenileme O3, LoadState O5, hata eşlemesi O6, çevrimdışı banner O7, Firebase kararı O8, widget hata görünürlüğü O2, izin ön-ekranı O14) açık.
+- **Aşama 1 (uygulandı, test edildi):**
+  - Y1: `/health` yanıtı `convertFromSnakeCase` yüzünden hiç decode edilemiyordu (`push_configured` alanı) → `pushReady` hep false; APNs kaydı asla başlamazdı. `Health` modeli `Shared/Models.swift`'e (`pushConfigured`) taşındı; `aps-environment` entitlement'ı eklendi; App ID'ye Push Notifications capability ASC API ile eklendi.
+  - Y2: Yerel hatırlatmaya dokunan kullanıcı Ailem sekmesine düşüyordu. `LocalNotifications.isReminder(identifier:)` (`hy.reminder.` ön eki; 0.2.0'da zamanlanmış bildirimleri de kapsar) → `HYSelfReminder` → Bugün sekmesi. Ön plandayken hatırlatma sekme değiştirmez.
+  - Y4: Paywall deneme uygunluğunu `Product.SubscriptionInfo.isEligibleForIntroOffer` ile kontrol eder (`StoreKitManager.trialEligible`); uygun değilse "Aylık Abone Ol" ve deneme metni yok.
+  - Y5: Süre dolum bildirimi "durum bilgisi iletildi" demiyor ("Yakınlarınız uygulamada henüz haber vermediğinizi görebilir").
+  - Y8: `PrimaryButton` pasifken %50 opaklık; BEN İYİYİM yalnız `sending` sırasında kilitli (arka plan `reload` kilitlemez).
+  - O11: Kontrol saati ekranı `Schedule.fitsInDay` (`minute + grace < 1440`, backend zod kuralının aynısı) ile uyarı gösterir ve Kaydet'i pasifleştirir.
+  - D1: `completedCard` `.accessibilityElement(children: .contain)` ile XCUITest'te görünür; `CheckInUITests` doğrudan bunu bekler (15 s zaman aşımı kalktı).
+- **Testler (izole backend 127.0.0.1:3100, iPhone 17 Pro sim):** YolundaTests **14/14** (3 yeni: Health decode, reminder tanıma, gün sığması), CheckInUITests **2/2**, 0 uyarı Aşama 1 kodunda. Log `/tmp/hy-stage1-test.log`.
+- **Sürüm kök nedeni:** Canlı App Store build'i `1.0 (4)` idi — xcodegen, Info.plist'i her üretimde literal `1.0`/`1` ile yazıyordu; elle düzeltmeler bir sonraki `xcodegen generate`'te kayboluyordu. Artık `project.yml` `info.properties` içinde `CFBundleShortVersionString: $(MARKETING_VERSION)` / `CFBundleVersion: $(CURRENT_PROJECT_VERSION)` (app + widget) ve `ITSAppUsesNonExemptEncryption: false` var. ITMS-90062 gereği yeni sürüm **1.0.1 (7)** (0.2.1 olamazdı: 1.0'dan küçük).
+- **Ekran görüntüleri:** `AppStoreScreenshots` UI testi Release + canlı API ile yeniden yazıldı (sentetik hesaplar sonunda silinir; tohum token'ları simülatör env ile). `scripts/store_screenshots.py` (Pillow) koyu yeşil gradyan + cihaz çerçevesi + Türkçe başlıklarla 6 görsel × 3 boyut üretir (`ios/StoreAssets/screenshots/`). ASC 1.0.1'e yüklendi: APP_IPHONE_67 (1320×2868), APP_IPHONE_65 (1284×2778), APP_IPAD_PRO_3GEN_129 (2064×2752), 18/18 COMPLETE.
+- **ASC gönderimi:** Sürüm `8c8db0f2-…` (1.0.1) oluşturuldu, build `241e3dd5-…` (7, VALID, `usesNonExemptEncryption=false`) bağlandı, "Yenilikler" yazıldı, review submission `b3044d3a-…` → **WAITING_FOR_REVIEW** (28 Eylül 2026 18:15 UTC). Onay/red henüz yok; inceleme sonucu ayrıca doğrulanmalı.
+- **Açık kalan:** APNs hâlâ `push_configured=false` (.p8 yok) — Y1 düzeltmesi yol açtı ama teslimat doğrulanmadı; Y4 deneme uygunluğu yalnız gerçek App Store hesabıyla gözlemlenebilir (StoreKit yapılandırma dosyası yok); iPad/yatay ve VoiceOver gerçek cihaz doğrulaması yok.
+
 ## 34. Değişiklik geçmişi
 
 | Sürüm | Tarih | Değişiklik |
@@ -1534,6 +1551,7 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 | 1.4 | 15 Eylül 2026 | Firebase'e geçiş kararı (D-013) ve iskelet: firebase.json, deny-all Firestore kuralları, functions yapısı, kullanıcı Google adım listesi. App Store takımı 5XR3QN2NJ6 kaydedildi (D-014). |
 | 1.5 | 16 Eylül 2026 | iCloud teşhisi ve projenin ~/Herşey Yolunda'ya taşınması; Render/Neon kararı (D-015), dış zamanlayıcı /tick (D-016), 33 backend testi, git deposu + Render Postgres blueprint + tick workflow; canlıya çıkış adımları netleştirildi. |
 | 1.6 | 16 Eylül 2026 | Freemium katmanı: StoreKit 2 aylık abonelik (199,99 TL, 1 ay deneme), paywall, Ailem gate'i, ASC ürün/fiyat/deneme yapılandırması, build 3 ve üç-parçalı inceleme gönderimi; ayrıca ayar kaydet butonlarının kalıcı pasif bug'ı, 12s→30s API timeout ve Info.plist sürüm değişkenleri düzeltildi. |
+| 1.7 | 28 Eylül 2026 | Kapsamlı iOS denetimi (40 bulgu), Aşama 1 düzeltmeleri (Y1 health decode + aps-environment, Y2 hatırlatma sekmesi, Y4 deneme uygunluğu, Y5 bildirim metni, Y8 pasif buton, O11 program doğrulaması, D1 UI test), sürüm değişkenlerinin project.yml'de kalıcılaştırılması, AppLaunchpad tarzı App Store görselleri (3 boyut) ve 1.0.1 (7) inceleme gönderimi. |
 
 ---
 

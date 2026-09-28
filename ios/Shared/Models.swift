@@ -93,9 +93,13 @@ struct Notice: Decodable, Identifiable {
 }
 struct ScheduleValue: Decodable { let minute: Int; let grace: Int; let effectiveDate: String }
 struct Schedule: Decodable { let current: ScheduleValue; let next: ScheduleValue; let timezone: String }
+extension Schedule {
+    static func fitsInDay(minute: Int, grace: Int) -> Bool { minute + grace < 1440 }
+}
 struct Preferences: Codable { var success: Bool; var missed: Bool; var analytics: Bool }
 struct SessionInfo: Decodable, Identifiable { let id: String; let deviceName: String; let current: Bool; let createdAt: Date }
 struct EmptyResponse: Decodable {}
+struct Health: Decodable { let status: String; let pushConfigured: Bool }
 struct BackendError: Decodable, LocalizedError {
     let code: String
     let message: String

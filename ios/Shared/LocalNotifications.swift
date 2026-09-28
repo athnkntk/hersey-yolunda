@@ -5,7 +5,10 @@ import UserNotifications
 /// APNs yapılandırılana kadar kullanıcının kendi hatırlatmaları bu kanaldan çalışır;
 /// aileye giden "missed/completed" bildirimleri yine backend push'una bağlıdır.
 enum LocalNotifications {
-    static let reminderIDs = (0...3).map { "hy.reminder.\($0)" }
+    static let reminderPrefix = "hy.reminder."
+    static let reminderIDs = (0...3).map { "\(reminderPrefix)\($0)" }
+
+    static func isReminder(identifier: String) -> Bool { identifier.hasPrefix(reminderPrefix) }
 
     static func cancelReminders() {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: reminderIDs)
@@ -32,7 +35,7 @@ enum LocalNotifications {
         if today.trustedContacts > 0, today.deadlineAt > now {
             schedule(center: center, id: reminderIDs[3], at: today.deadlineAt,
                      title: "Haber verme süreniz doldu",
-                     body: "Yakınlarınıza durum bilgisi iletildi. İsterseniz şimdi de haber verebilirsiniz.")
+                     body: "Yakınlarınız uygulamada henüz haber vermediğinizi görebilir. İsterseniz şimdi de haber verebilirsiniz.")
         }
     }
 

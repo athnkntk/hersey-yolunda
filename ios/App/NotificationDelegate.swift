@@ -33,10 +33,15 @@ final class NotificationDelegate: NSObject, UIApplicationDelegate, UNUserNotific
         NotificationCenter.default.post(name: .init("HYNotificationRegistrationFailed"), object: nil)
     }
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        if LocalNotifications.isReminder(identifier: notification.request.identifier) { return [.banner, .sound] }
         await MainActor.run { NotificationCenter.default.post(name: .init("HYRemoteNotification"), object: nil) }
         return [.banner, .sound]
     }
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        if LocalNotifications.isReminder(identifier: response.notification.request.identifier) {
+            await MainActor.run { NotificationCenter.default.post(name: .init("HYSelfReminder"), object: nil) }
+            return
+        }
         if let event = response.notification.request.content.userInfo["event_id"] as? String,
            UUID(uuidString: event) != nil {
             let _: EmptyResponse? = try? await APIClient.shared.request("POST", "/me/notifications/\(event)/opened")

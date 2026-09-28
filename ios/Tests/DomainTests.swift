@@ -39,4 +39,20 @@ final class DomainTests: XCTestCase {
         XCTAssertEqual(restored.key, pending.key)
         XCTAssertEqual(restored.source, "ios_widget")
     }
+    func testHealthDecodesPushConfiguredFlag() throws {
+        let on = Data("{\"status\":\"ok\",\"mode\":\"production\",\"push_configured\":true,\"sms_configured\":false}".utf8)
+        let off = Data("{\"status\":\"ok\",\"mode\":\"production\",\"push_configured\":false,\"sms_configured\":false}".utf8)
+        XCTAssertTrue(try APIClient.decoder().decode(Health.self, from: on).pushConfigured)
+        XCTAssertFalse(try APIClient.decoder().decode(Health.self, from: off).pushConfigured)
+    }
+    func testReminderIdentifiersAreRecognised() {
+        XCTAssertTrue(LocalNotifications.isReminder(identifier: LocalNotifications.reminderIDs[3]))
+        XCTAssertFalse(LocalNotifications.isReminder(identifier: "hy.remote.event"))
+    }
+    func testScheduleMustFitInsideOneDay() {
+        XCTAssertTrue(Schedule.fitsInDay(minute: 540, grace: 240))
+        XCTAssertTrue(Schedule.fitsInDay(minute: 1199, grace: 240))
+        XCTAssertFalse(Schedule.fitsInDay(minute: 1200, grace: 240))
+        XCTAssertFalse(Schedule.fitsInDay(minute: 1380, grace: 240))
+    }
 }
