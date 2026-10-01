@@ -1540,6 +1540,19 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 - **ASC gönderimi:** Sürüm `8c8db0f2-…` (1.0.1) oluşturuldu, build `241e3dd5-…` (7, VALID, `usesNonExemptEncryption=false`) bağlandı, "Yenilikler" yazıldı, review submission `b3044d3a-…` → **WAITING_FOR_REVIEW** (28 Eylül 2026 18:15 UTC). Onay/red henüz yok; inceleme sonucu ayrıca doğrulanmalı.
 - **Açık kalan:** APNs hâlâ `push_configured=false` (.p8 yok) — Y1 düzeltmesi yol açtı ama teslimat doğrulanmadı; Y4 deneme uygunluğu yalnız gerçek App Store hesabıyla gözlemlenebilir (StoreKit yapılandırma dosyası yok); iPad/yatay ve VoiceOver gerçek cihaz doğrulaması yok.
 
+#### ASO iyileştirmeleri + 1.0.2 hazırlığı — 1 Ekim 2026
+
+- **1.0.1 sonucu:** Apple incelemesi onayladı, sürüm READY_FOR_SALE (auto-release); yeni ekran görüntüleri ve düzeltmeler canlıda. Review submission `b3044d3a-…` COMPLETE.
+- **ASO (1.0.2 üzerinde, app id 6812729799):**
+  - tr name → `Hersey Yolunda: Aile Haber` (ş'li "Herşey Yolunda" adı başka hesapta alınmış — 409 DUPLICATE.DIFFERENT_ACCOUNT; en-GB'de ş'li ad serbest ve alındı).
+  - tr subtitle → `Yaşlı yakınınız için kontrol` (30 kr sınırı; "yaşlı"/"kontrol" eklendi, name'deki "haber" ile tekrarlanmadı).
+  - tr keywords → `güvenlik,bakım,anne,baba,dede,nine,hatırlatma,huzur,iyiyim,ailem,iyilik,bakımı,evde,günlük,bildirim` (93/100 kr; name/subtitle'daki kelimeler çıkarıldı, "check-in" atıldı).
+  - **en-GB lokalizasyonu eklendi** (TR vitrini tr + en-GB indeksler → ekstra 100 kr keyword alanı): name `Herşey Yolunda`, aynı subtitle; version loc: Türkçe description/promo/whatsNew + keywords `merak,yalnız,emekli,huzurevi,eş,sevdik,takip,güven,checkin,yaşlılar,refah,endişe,telefon,arama`. Ekran görüntüsü en-GB'ye gerek yok (tr varsayılanı kullanılır).
+- **Web:** `web/public/index.html` `APP_STORE_URL` → https://apps.apple.com/tr/app/id6812729799 (200 doğrulandı; davet sayfasında "App Store'dan İndir" artık görünür).
+- **Değerlendirme istemi:** `ReviewPrompt` (AppState.swift) — yalnızca sunucu onaylı check-in'ler sayılır; 3. check-in'de ve sonrasında her 25.'de `AppStore.requestReview(in:)` (Apple'ın yıllık sınırı korur). Test: `testReviewPromptTiming`.
+- **Not:** iOS aramada description indekslenmez; sıralamada asıl belirleyici indirme hızı, sayfa dönüşümü ve puan/yorumdur. PPO (ürün sayfası A/B testi) ve in-app events ileride değerlendirilebilir — 1.0.1 artık canlı olduğundan PPO kurulabilir.
+- **1.0.2 gönderildi:** build 8 yüklendi (VALID), sürüme bağlandı, review submission `5658fffc-…` → **WAITING_FOR_REVIEW** (1 Ekim 18:42 UTC). en-GB lokalizasyonu için ayrıca `supportUrl` + `privacyPolicyUrl` gerekti. `ReviewPrompt.checkInCompleted` `@MainActor` gerektirdi (`AppStore.requestReview(in:)` main-actor izoleli). Doğrulama: YolundaTests 15/15, iPhone 17 sim (17 Pro artık yok), 0 uyarı.
+
 ## 34. Değişiklik geçmişi
 
 | Sürüm | Tarih | Değişiklik |

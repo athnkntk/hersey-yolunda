@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 import UserNotifications
 import Combine
 
@@ -69,6 +70,7 @@ final class AppState: ObservableObject {
             self.today = result
             online = true
             await LocalNotifications.sync(today: result, enabled: profile.enabled)
+            ReviewPrompt.checkInCompleted()
         } catch { if !isCancellationError(error) { self.error = error.localizedDescription } }
     }
     func pause(_ value: Bool) async {
@@ -134,6 +136,23 @@ final class AppState: ObservableObject {
 func isCancellationError(_ error: Error) -> Bool {
     if error is CancellationError { return true }
     return (error as? URLError)?.code == .cancelled
+}
+
+/// App Store değerlendirme istemi: yalnızca gerçekten başarılı check-in sayısına bakar.
+enum ReviewPrompt {
+    static func shouldAsk(completedCount: Int) -> Bool {
+        completedCount == 3 || (completedCount > 3 && completedCount % 25 == 0)
+    }
+    @MainActor
+    static func checkInCompleted() {
+        let key = "review.completedCount"
+        let count = UserDefaults.standard.integer(forKey: key) + 1
+        UserDefaults.standard.set(count, forKey: key)
+        guard shouldAsk(completedCount: count),
+              let scene = UIApplication.shared.connectedScenes
+                  .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene else { return }
+        AppStore.requestReview(in: scene)
+    }
 }
 
 enum Design {

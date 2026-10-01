@@ -40,8 +40,7 @@
   <div class="warn">Bu uygulama acil yardım veya tıbbi müdahale hizmeti değildir.</div>
 </main>
 <script>
-  // App Store listesi yayına girdiğinde bu adresi güncelle:
-  var APP_STORE_URL = "";
+  var APP_STORE_URL = "https://apps.apple.com/tr/app/id6812729799";
   var token = new URLSearchParams(location.search).get("token") || "";
   var openApp = document.getElementById("openApp");
   openApp.disabled = token.length !== 43;

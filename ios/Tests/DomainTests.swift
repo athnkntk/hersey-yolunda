@@ -55,4 +55,13 @@ final class DomainTests: XCTestCase {
         XCTAssertFalse(Schedule.fitsInDay(minute: 1200, grace: 240))
         XCTAssertFalse(Schedule.fitsInDay(minute: 1380, grace: 240))
     }
+    func testReviewPromptTiming() {
+        XCTAssertFalse(ReviewPrompt.shouldAsk(completedCount: 0))
+        XCTAssertFalse(ReviewPrompt.shouldAsk(completedCount: 2))
+        XCTAssertTrue(ReviewPrompt.shouldAsk(completedCount: 3))
+        XCTAssertFalse(ReviewPrompt.shouldAsk(completedCount: 4))
+        XCTAssertFalse(ReviewPrompt.shouldAsk(completedCount: 24))
+        XCTAssertTrue(ReviewPrompt.shouldAsk(completedCount: 25))
+        XCTAssertTrue(ReviewPrompt.shouldAsk(completedCount: 50))
+    }
 }
