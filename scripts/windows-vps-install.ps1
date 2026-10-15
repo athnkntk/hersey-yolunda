@@ -45,9 +45,10 @@ foreach ($line in (Get-Content $envFile)) {
     # Strip BOM/zero-width/non-ASCII junk that clipboard pastes can smuggle in
     $clean = ($line -replace '[^\x20-\x7E]', '')
     if ($clean -match '^\s*([A-Za-z_]+)\s*=\s*(\S.*)$') {
+        $key = $Matches[1].Trim()
         $v = $Matches[2].Trim()
-        if ($v -match '^".*"$') { $v = $v.Trim('"') }
-        $kv[$Matches[1].Trim()] = $v
+        if ($v.StartsWith('"') -and $v.EndsWith('"')) { $v = $v.Substring(1, $v.Length - 2) }
+        $kv[$key] = $v
     }
 }
 $missing = @('DATABASE_URL','DATA_ENCRYPTION_KEY','LOOKUP_KEY','TICK_SECRET') | Where-Object { -not $kv[$_] }
