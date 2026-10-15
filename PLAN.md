@@ -13,7 +13,7 @@ Kullanıcı onayıyla giriş modeli revize edildi: Ad + kullanım tercihi → ra
 
 Eşleşme, kalıcı hesap ID'sini yazmak yerine 48 saatlik tek kullanımlı davet bağlantısı, QR veya 12 karakterli okunabilir kodla yapılır. Sahip onayı değişmez. QR üretimi için uygulama kamera izni istemez; okutma diğer telefonun kamera/QR uygulamasıyla yapılır. Mevcut özel URL şeması uygulama yüklüyken çalışır; doğrulanmış HTTPS domain/Universal Links ve yükleme sonrası devam akışı henüz açık iştir.
 
-Apple ile hesap koruma isteğe bağlı sonraki entegrasyondur; bu revizyonda çalışıyor gibi bir düğme sunulmaz. Oturum/telefon kaybında veya çıkışta, kurtarma yöntemi bağlanmadıysa yeni hesap ve yeniden aile onayı gerektiği açıkça gösterilir. Otomatik ID eşleşmesi hesap devralma anlamına gelmez.
+Kurtarma, kullanıcının Ayarlar'dan oluşturup güvenli sakladığı anahtarla yapılır (build 10). Apple ile hesap koruma isteğe bağlı sonraki entegrasyondur; bu revizyonda çalışıyor gibi bir düğme sunulmaz. Oturum/telefon kaybında veya çıkışta, kaydedilmiş kurtarma anahtarı yoksa yeni hesap ve yeniden aile onayı gerektiği açıkça gösterilir. Otomatik ID eşleşmesi hesap devralma anlamına gelmez.
 
 Önceki doğrulama kayıtlarındaki OTP testleri tarihsel kayıttır; aşağıdaki güncel sprint, API ve güvenlik maddeleri bu revizyonu esas alır.
 
@@ -1026,7 +1026,7 @@ Gizlilik ve güvenlik baştan uygulanır; Sprint 5 bunların ilk defa eklendiği
 | Başkası kullanıcının açık telefonunda bastı | Biyometrik sağlık doğrulaması iddiası yok; cihaz güvenliği sınırı açıklanır |
 | Kullanıcı farklı ülkeye gitti | Program saat dilimi kullanıcı onayı olmadan değişmez |
 | Yakın farklı saat diliminde | Profilin kontrol saati açık saat dilimiyle gösterilir |
-| Telefon/oturum kayboldu | Ad veya hesap ID'si eski hesaba giriş sağlamaz; Apple kurtarma bağlanmadıysa yeni hesap ve yeniden açık eşleştirme |
+| Telefon/oturum kayboldu | Ad veya hesap ID'si eski hesaba giriş sağlamaz; kaydedilmiş kurtarma anahtarı varsa aynı hesap geri açılır, yoksa yeni hesap ve yeniden açık eşleştirme |
 | Gün içinde hesap silindi | İşler/ilişkiler iptal; missed uyarısı üretilmez |
 | Teknik kesinti | Kullanıcı cevapsızlığıyla karıştırılmaz |
 | Geç push geldi | Güncellik kontrolü; eski bildirimden açılan ekran güncel backend durumunu gösterir |
@@ -1281,7 +1281,7 @@ Yerel çalışma sürümü hazırdır; consumer MVP'nin canlı hizmet ve saha do
 | Engel | Neden açık? | Devam için gerekli |
 |---|---|---|
 | Apple Developer / gerçek cihaz | Team, provisioning, App Group, shared Keychain ve push yetkileri gerçek cihazda doğrulanmadı | Apple hesabı ve test iPhone'u |
-| Hesap koruma / kurtarma | Yeni giriş SMS'siz; Apple ile bağlama henüz yok | Apple Sign In yetkisi, backend token doğrulama ve kurtarma akışı |
+| Hesap koruma / kurtarma | Yeni giriş SMS'siz; kullanıcı-elinde kurtarma anahtarı uygulandı (build 10); Apple ile bağlama açık | Apple Sign In yetkisi ve backend token doğrulama; kurtarma anahtarının gerçek cihaz doğrulaması |
 | Alan adı / canlı HTTPS sunucu | Davet kodu ve web varlıkları hazır; gerçek domain, DNS ve sunucu yok | Domain satın alma kararı, sunucu (VPS vb.) veya yönetilen hosting + DNS A kaydı |
 | Universal Links etkinleştirme | AASA dosyası, Caddy yapılandırması ve link kodu hazır; entitlement bağlanmadı | Domain belirlendikten sonra Xcode'da Associated Domains (`applinks:domain`) eklenip yeniden derleme |
 | App Store listesi | Açılış sayfası mağaza düğmesi placeholder olarak hazır | App Store Connect kaydı, inceleme süreci ve liste bağlantısının `web/public/index.html` içine yazılması |
@@ -1565,7 +1565,7 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 
 - **Backend (v6, deploy bekliyor):** IANA timezone'lu hesap (`/auth/device` `timezone` alanı, eski sunucu strict şema reddeder → **yeni uygulamadan önce backend deploy edilmeli**), hesap saat diliminde gün/occurrence hesabı, PostgreSQL wall-clock DST dönüşümü, refresh yanıt tekrarı (replay) koruması, `Accept-Language` ile tr/en HTTP hata metinleri + `Content-Language`/`X-Server-Time` başlıkları. Davet önizleme/kabul/onay yalnız kimlikli uçlardadır (`POST /invitations/preview`, `{id}/accept|decline`); public durum ucu yoktur — açılış sayfası token'ı yalnız sözdizimsel denetler, doğrulama uygulama içinde yapılır.
 - **iOS:** `ServerClock` sunucu-zaman ankrajı + `evaluationDate` (widget cihaz saatine güvenmez), `Today.supersedes` (eski bekleyen yanıt tamamlanmış durumu geri alamaz), check-in idempotency + aynı-hesap pending/widget hatası yönetimi, `AppState` oturum jenerasyonu/mutation revision/`expectedUser` sahiplik kontrolleri (gecikmiş yanıt/eski hesap state'i geri yazamaz), `LocalNotifications` kilitli scheduleRevision + `applySchedule` (eski sync yeni planı iptal edemez), oturum düşüş bildirimi hesap-sahipli (eski kullanıcının expiry'si yeni hesabı temizleyemez).
-- **Çift dil:** Tüm uygulama + widget tr/en (345 katalog anahtarı her iki dilde); uygulama içi dil seçimi, yeniden başlatmada korunur. APNs bağlı olmadığı için paywall "Haber gelmediğinde durumu görün" der (aile push vaadi yok). Bildirim statüleri dürüst haritalanır (`provider_accepted` ≠ iletildi).
+- **Çift dil:** Tüm uygulama + widget tr/en (385 katalog anahtarı her iki dilde); uygulama içi dil seçimi, yeniden başlatmada korunur. APNs bağlı olmadığı için paywall "Haber gelmediğinde durumu görün" der (aile push vaadi yok). Bildirim statüleri dürüst haritalanır (`provider_accepted` ≠ iletildi).
 - **Gizlilik manifesti:** `PrivacyInfo.xcprivacy` UserDefaults (CA92.1/1C8F.1) + SystemBootTime (35F9.1/8FFB.1 — ServerClock elapsed+absolute kullanımı); uygulama ve widget paketinde doğrulandı. Ham uptime/boot-time iletilmez.
 - **Web:** `docs/index.html`/`privacy.html`/`site.js` (destek + gizlilik, çift dil, çerçevesiz/izleyicisiz) ve `web/public/index.html` (davet) — dil: `?lang=` → kayıtlı → `navigator.languages` → en; token regex `^[A-Za-z0-9_-]{43}$` tek parametre (yalnız sözdizimi kontrolü — sunucu isteği yok; geçerlilik uygulama içinde doğrulanır), nötr App Store URL (`apps.apple.com/app/id6812729799`), `[hidden]` CSS ve `referrer no-referrer`.
 - **Mağaza paketi (yerel taslak, ASC'ye yazılmadı):** `ios/StoreAssets/1.1.0/metadata.json` (tr/en-US/en-GB ad/alt başlık/anahtar/promo/açıklama/whatsNew + abonelik lokalizasyonları; uzunluklar sınır içinde), `scripts/store_screenshots.py --locale tr|en`, `AppStoreScreenshots` opt-in (`HY_CAPTURE_STORE_SCREENSHOTS=1`, `HY_SCREENSHOT_LOCALE`).
@@ -1587,6 +1587,26 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 
 - **Sınırlar:** Üretim deploy yapılmadı (backend v6 bekliyor); APNs `push_configured=false` — aile push teslimatı yok; StoreKit satın alma/geri yükleme yalnız test fixture'ı; gerçek cihaz, VoiceOver, TestFlight ve App Store incelemesi doğrulanmadı. Yerel görseller `ios/StoreAssets/1.1.0/review-screenshots/` (üretim yakalaması ayrı kapı).
 
+#### Kurtarma anahtarı + Render proxy güveni (build 10) — 15 Ekim 2026
+
+- **Backend (v7, deploy bekliyor):** `users.recovery_key_hash` (HMAC, `lookup('recovery:'+key)`), `recovery_key_version`, `recovery_key_set_at`; `account_recoveries` tablosu (request_hash PK, fingerprint, şifreli yanıt, 10 dk replay penceresi, kullanıcı silinince cascade, tick ile temizlik). Uçlar: `GET/PUT/DELETE /me/recovery-key` (yalnız sahip oturumu; sürüm kontrolü `recovery_changed`, aynı anahtarın tekrarlı PUT'u kayıp-yanıt için idempotent; başkasının anahtarı `recovery_key_unavailable` — diğer kullanıcı asla tanımlanmaz), kimliksiz `POST /auth/recover` (önceden commitlenen `recovery-network` limiti 10/600s — geçersiz tahminler de tüketir; danışma kilidiyle tek tüketim; aynı request_id pencere içinde aynı yanıtı döner; tüm eski oturumlar iptal + cihaz token'ları silinir + bootstrap kaydı süresi doldurulur). Anahtar `HYR1.` + 32 bayt kanonik base64url (48 kr); ad/hesap ID'si/davet kodu asla kimlik değildir.
+- **iOS:** `RecoveryKey` (SecRandomCopyBytes üretimi + kanonik doğrulama, yalnız dış boşluk kesilir), `PendingRecoverySetup`/`PendingAccountRecovery` Keychain kayıtları (AfterFirstUnlockThisDeviceOnly, paylaşılan grup), `APIClient` hazırlama/etkinleştirme/kurtarma metotları (dosya kilidi; ağ çağrısı kilit içinde yapılmaz; zaman aşımı requestID+yedek anahtarı korur; başarılı yanıt önce oturum olarak kaydedilir, sonra eski hesap izleri temizlenir — `SharedStorage.clear()` yeni oturumu sileceği için kullanılmaz; dil ve sunucu saati korunur). `RecoveryViews.swift`: Ayarlar'da anahtar oluştur/etkinleştir/yenile/kapat (açık kaydetme onayı; sunucu onayı gelmeden "etkin değil"), oturum kapanışı ve karşılama ekranından "Kurtarma anahtarım var" → eski anahtar → yeni yedek anahtar kaydetme → bilinçli kurtarma. Yarım kalan deneme açıkça devam ettirilebilir veya silinebilir; arka planda otomatik kurtarma yok.
+- **Proxy:** `main.ts`'te `if (production) app.getHttpAdapter().getInstance().set('trust proxy', 1);` — NestFactory.create'ten hemen sonra, middleware'den önce. Render tek proxy hop'u arkasında çalışır (resmi Render belgesi); bu olmadan `request.ip` yük dengeleyici IP'si olur ve ağ limitleri paylaşılır. Geliştirme/test varsayılan `false` kalır; keyfi en soldaki `X-Forwarded-For`'a güvenilmez.
+- **Sürüm:** 1.1.0 build **10** (ASC en yüksek 8; yerel 9 hiç yüklenmedi). Kataloglar 385/385 eşit anahtar; `metadata.json` build 10 + whatsNew kurtarma maddesi; destek/gizlilik/mağaza metinleri "kurtarma yok" iddiasından "yalnız kaydedilmiş anahtarla" doğruluğuna çekildi.
+- **Xcode 16.4 uyumu:** Widget `configurationDisplayName`/`description` artık `LocalizedStringResource` değil `L10n.text(...)` String alıyor (iOS 18.5 SDK overload yok — CI GitHub Verify 38726420498 hatası); AppIntent `LocalizedStringResource` alanları derlendiği için korundu.
+
+**Doğrulama — 15 Ekim 2026 (yerel)**
+
+| Kontrol | Sonuç | Kanıt / sınır |
+|---|---|---|
+| Backend build | Geçti | `npm run build` (tsc --noEmit) temiz |
+| Backend hedefli testler | **37/37 geçti** | `node --import tsx --test test/account.test.ts test/migration.test.ts test/notifications.test.ts` — kurtarma yaşam döngüsü, replay/yarış, sürüm koruması, cascade/tick temizliği, ağ limiti, v7 fixture doğrulaması |
+| iOS birim (Domain+Transport) | Geçti | `/tmp/hy-recovery-tests.xcresult` (59 geçti; UI testi aynı koşuda etiket hatasıyla düştü, düzeltildi) — anahtar üretimi/kanonik doğrulama, Keychain saklama, timeout'ta kalıcı kayıt, kimliksiz kurtarma isteği, bozuk yanıtta oturum açılmaması, kayıp yanıt tekrarı |
+| iOS UI | Geçti | `/tmp/hy-recovery-ui4.xcresult` — `testRecoveryKeyRestoresAccount` (en): hesap → check-in → anahtar oluştur/etkinleştir → çıkış → eski anahtarla kurtarma + yeni anahtar kaydetme → aynı hesap ID'si ve tamamlanmış geçmiş (96 sn) |
+| Dev API 3110 | Çalışıyor | `/tmp/hy-phase2-db` v7'ye migrate edildi; health 200 |
+
+- **Sınırlar:** Üretim deploy/Render yapılandırması ve ASC gönderimi liderin aşaması; gerçek cihaz Keychain davranışı, `trust proxy` varsayımının canlı doğrulaması (Render tek hop varsayımı resmi belgeye dayanır, üretimde ayrıca gözlenmeli) ve StoreKit gerçek satın alma doğrulanmadı. Apple ile hesap bağlama hâlâ yok; kurtarma yalnız kullanıcının önceden kaydettiği anahtarla çalışır.
+
 ## 34. Değişiklik geçmişi
 
 | Sürüm | Tarih | Değişiklik |
@@ -1600,6 +1620,7 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 | 1.6 | 16 Eylül 2026 | Freemium katmanı: StoreKit 2 aylık abonelik (199,99 TL, 1 ay deneme), paywall, Ailem gate'i, ASC ürün/fiyat/deneme yapılandırması, build 3 ve üç-parçalı inceleme gönderimi; ayrıca ayar kaydet butonlarının kalıcı pasif bug'ı, 12s→30s API timeout ve Info.plist sürüm değişkenleri düzeltildi. |
 | 1.7 | 28 Eylül 2026 | Kapsamlı iOS denetimi (40 bulgu), Aşama 1 düzeltmeleri (Y1 health decode + aps-environment, Y2 hatırlatma sekmesi, Y4 deneme uygunluğu, Y5 bildirim metni, Y8 pasif buton, O11 program doğrulaması, D1 UI test), sürüm değişkenlerinin project.yml'de kalıcılaştırılması, AppLaunchpad tarzı App Store görselleri (3 boyut) ve 1.0.1 (7) inceleme gönderimi. |
 | 1.8 | 15 Ekim 2026 | Küresel sürüm (1.1.0) yerel hazırlığı: hesap timezone'u + tr/en backend lokalizasyonu + Multer 2.4.0 (audit 0) (backend v6, deploy bekliyor); ServerClock/supersedes/oturum sahipliği/kilitli bildirim planlaması iOS tarafında; tam tr/en uygulama+widget; çift dilli destek/gizlilik/davet sayfaları (davet token'ı yalnız sözdizimsel — public durum ucu yok); yerel mağaza paketi (metadata + review görselleri); dağıtım imzalı yerel IPA doğrulandı. Üretim deploy, ASC yazımı ve gerçek cihaz açık kalır. |
+| 1.9 | 15 Ekim 2026 | Kullanıcı-elinde kurtarma anahtarı (build 10): backend v7 (`recovery_key_hash`/sürüm + `account_recoveries` replay tablosu, `GET/PUT/DELETE /me/recovery-key`, kimliksiz `POST /auth/recover`); iOS `RecoveryKey` + Keychain bekleyen kayıtlar + `RecoveryViews` (Ayarlar kurulumu ve karşılama/oturum-sonu kurtarma akışı); Render tek-hop `trust proxy` (yalnız üretim); Xcode 16.4 uyumu için widget `L10n.text`. Yerel doğrulama: backend 37/37, iOS birim + `testRecoveryKeyRestoresAccount` UI akışı geçti. |
 
 ---
 

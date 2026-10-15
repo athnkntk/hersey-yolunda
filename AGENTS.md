@@ -24,7 +24,8 @@
 - HTTP integration tests against the local server: npm run test:http in backend/.
 - Accounts are created by name + enabled preference via POST /auth/device. A random device-held bootstrap secret supports retry for 10 minutes; names and account IDs are never credentials. Old OTP endpoints return 410 in every environment.
 - Local mode uses PGlite in backend/.data by default; LOCAL_DATABASE_PATH selects a separate development database. Preserve existing backups. Use synthetic names only.
-- Production requires DATABASE_URL, DATA_ENCRYPTION_KEY (32-byte hex), LOOKUP_KEY. Signup has no SMS dependency. Apple-linked recovery is not implemented; never imply it is available.
+- Production requires DATABASE_URL, DATA_ENCRYPTION_KEY (32-byte hex), LOOKUP_KEY. Signup has no SMS dependency. User-held recovery keys are implemented (`HYR1.` + 32-byte base64url; `GET/PUT/DELETE /me/recovery-key`, unauthenticated `POST /auth/recover` which rotates the key and revokes old sessions). Apple-linked recovery is still NOT implemented; never imply it is available.
+- Production trusts exactly one proxy hop (Render): `app.set('trust proxy', 1)` is applied only when NODE_ENV=production, immediately after NestFactory.create; development/test keep the Express default. Registration/recovery rate limits rely on `request.ip` — never enable `trust proxy` broadly or trust arbitrary leftmost X-Forwarded-For.
 - Invitations accept either a 256-bit token/link or a rate-limited 12-character code, not an account ID. Owner authorization is mandatory. QR generation uses CoreImage and requests no camera permission.
 - APNs transport requires explicit APNS_ENABLED=true and production credentials; local tests inject a fake transport.
 - Dependencies are pinned. Multer 2.4.0 override keeps Nest's transitive dependency at the first patched version (GHSA-3pph-fpjx-jg34). Do not bypass security checks or enable dependency install scripts without reviewing them.
