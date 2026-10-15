@@ -41,10 +41,19 @@ TICK_SECRET=
 "@ | Out-File $envFile -Encoding ascii
 }
 $kv = @{}
-Get-Content $envFile | ForEach-Object { if ($_ -match '^\s*([A-Za-z_]+)\s*=\s*(\S.*)$') { $kv[$Matches[1].Trim()] = $Matches[2].Trim() } }
+foreach ($line in (Get-Content $envFile)) {
+    # Strip BOM/zero-width/non-ASCII junk that clipboard pastes can smuggle in
+    $clean = ($line -replace '[^\x20-\x7E]', '')
+    if ($clean -match '^\s*([A-Za-z_]+)\s*=\s*(\S.*)$') {
+        $v = $Matches[2].Trim()
+        if ($v -match '^".*"$') { $v = $v.Trim('"') }
+        $kv[$Matches[1].Trim()] = $v
+    }
+}
 $missing = @('DATABASE_URL','DATA_ENCRYPTION_KEY','LOOKUP_KEY','TICK_SECRET') | Where-Object { -not $kv[$_] }
 if ($missing) {
     Write-Host "==> Fill these in $envFile then re-run: $($missing -join ', ')" -ForegroundColor Yellow
+    Get-Content $envFile | ForEach-Object { Write-Host ("RAW: " + [regex]::Escape($_)) }
     notepad $envFile
     exit 0
 }
@@ -98,7 +107,7 @@ $ip.sslip.io {
 
 # --- 7. Services ---
 $merged = [ordered]@{}
-Get-Content $envFile | ForEach-Object { if ($_ -match '^\s*([A-Za-z_]+)\s*=\s*(.*)$') { $v = $Matches[2].Trim(); if ($v -match '^".*"$') { $v = $v.Trim('"') }; $merged[$Matches[1].Trim()] = $v } }
+foreach ($k in $kv.Keys) { $merged[$k] = $kv[$k] }
 # Bind localhost only — Caddy is the public edge on 443
 $merged['NODE_ENV'] = 'production'; $merged['HOST'] = '127.0.0.1'
 $merged['PORT'] = '3000'; $merged['SCHEDULER_MODE'] = 'external'
