@@ -1,9 +1,9 @@
 # Herşey Yolunda — Ürün ve Geliştirme Planı
 
-- Plan sürümü: 1.5
+- Plan sürümü: 1.8
 - Oluşturulma tarihi: 15 Eylül 2026
 - Hedef platform: iOS
-- Durum: Canlıya çıkış (Render) için kod hazır; `gh auth login` ve Render Blueprint kullanıcı adımları bekleniyor. Proje artık `~/Herşey Yolunda` (iCloud dışı).
+- Durum: Yerel 1.1.0 hazırlığı — Türkçe/İngilizce uygulama+widget, timezone'lu takvim, dürüst abonelik/bildirim metinleri, çift dilli destek/gizlilik/davet sayfaları ve yerel mağaza paketi doğrulandı. Canlı 1.0.2'de; 1.1.0 gönderilmedi. `gh` kimliği doğrulanmış (`athnkntk`); repo `athnkntk/hersey-yolunda` (public, `main`). Proje `~/Herşey Yolunda` (iCloud dışı).
 - Çalışma biçimi: Bu dosya kapsam, kararlar, uygulama sırası ve kabul kriterleri için ana referanstır.
 - Marka yazımı: Kullanıcının tercihiyle “Herşey Yolunda”. Normal Türkçe yazımı “Her Şey Yolunda”dır; mağaza ve görsel kimlikte kullanılacak nihai yazım geliştirme öncesi teyit edilecektir.
 
@@ -1443,7 +1443,7 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 3. Kullanıcı: render.com → GitHub ile üye → **New → Blueprint** → repo seç → 3 anahtarı yapıştır → Apply (DATABASE_URL otomatik).
 4. Devin: `API_URL` repo değişkenini ayarla; tick workflow'u elle tetikleyip doğrula.
 5. Devin: iOS Release derlemesi `HY_API_URL=https://<servis>.onrender.com/v1` ile → gerçek iPhone'a kurulum → canlı aile testi.
-6. Sonrası: APNs .p8 anahtarı (canlı push), App Store gönderimi (5XR3QN2NJ6 takımı).
+6. Sonrası: APNs yapılandırması ve canlı teslimat, App Store gönderimi (5XR3QN2NJ6 takımı).
 - Uyarı: 30 gün DB sınırı; GitHub Actions zamanlaması yoğunlukta gecikebilir (cron-job.org yedek).
 
 #### Release yapılandırması (16 Eylül 2026)
@@ -1553,6 +1553,40 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 - **Not:** iOS aramada description indekslenmez; sıralamada asıl belirleyici indirme hızı, sayfa dönüşümü ve puan/yorumdur. PPO (ürün sayfası A/B testi) ve in-app events ileride değerlendirilebilir — 1.0.1 artık canlı olduğundan PPO kurulabilir.
 - **1.0.2 gönderildi:** build 8 yüklendi (VALID), sürüme bağlandı, review submission `5658fffc-…` → **WAITING_FOR_REVIEW** (1 Ekim 18:42 UTC). en-GB lokalizasyonu için ayrıca `supportUrl` + `privacyPolicyUrl` gerekti. `ReviewPrompt.checkInCompleted` `@MainActor` gerektirdi (`AppStore.requestReview(in:)` main-actor izoleli). Doğrulama: YolundaTests 15/15, iPhone 17 sim (17 Pro artık yok), 0 uyarı.
 
+#### ASO raporu ve dil kaydı doğrulaması — 15 Ekim 2026
+
+- **Canlı durum:** ASC salt okunur GET sorgularıyla 1.0.2 `READY_FOR_SALE`; Apple TR/US lookup yanıtlarıyla 1.0.2 ve yayın zamanı `2026-10-02T14:59:26Z` doğrulandı. Bu, 1 Ekim'deki bekleyen inceleme kaydını sonuçlandırır.
+- **Dil farkı:** Türkçe seçili canlı sayfada `Hersey Yolunda: Aile Haber` görünür. TrackASO TR/US raporları, mevcut en-GB adıyla aynı olan kısa `Herşey Yolunda` adını puanlıyor; geliştirilmiş Türkçe adı değerlendirmiyor. Aracın veri alma yöntemi doğrulanmadı.
+- **Puan yorumu:** TR 53 / US 42; ad ve alt başlık bileşenleri iki raporda aynı. Değerlendirmeler TR'de 2 (ortalama 5,0), US'de 0; Apple lookup ile doğrulandı. Aracın sınırlı arama örnekleminde bulunmamak, tüm App Store'da görünmezlik kanıtı değildir.
+- **Taslak:** `ios/StoreAssets/aso-2026-10-15.md` içinde TR ve koşullu İngilizce ad/alt başlık/anahtar kelime önerileri hazırlandı. Python `len` ile TR 28/28/88, İngilizce 30/30/87 karakter (ad/alt başlık/anahtar kelime) doğrulandı. Yalnız yerel taslak; ASC'ye yazılmadı.
+- **Açık:** Uygulama yalnız Türkçe; mevcut en-GB metinleri de Türkçe ve en-US kaydı yok. ABD hedefi, İngilizce arayüz/görseller ve anahtar kelime talebi ayrı değerlendirme gerektirir. Yeni adların kullanılabilirliği, sıralama etkisi veya Apple kabulü doğrulanmadı. Kod değişmedi; uygulama testleri çalıştırılmadı.
+
+#### Küresel sürüm (1.1.0) yerel hazırlığı — 15 Ekim 2026
+
+- **Backend (v6, deploy bekliyor):** IANA timezone'lu hesap (`/auth/device` `timezone` alanı, eski sunucu strict şema reddeder → **yeni uygulamadan önce backend deploy edilmeli**), hesap saat diliminde gün/occurrence hesabı, PostgreSQL wall-clock DST dönüşümü, refresh yanıt tekrarı (replay) koruması, `Accept-Language` ile tr/en HTTP hata metinleri + `Content-Language`/`X-Server-Time` başlıkları. Davet önizleme/kabul/onay yalnız kimlikli uçlardadır (`POST /invitations/preview`, `{id}/accept|decline`); public durum ucu yoktur — açılış sayfası token'ı yalnız sözdizimsel denetler, doğrulama uygulama içinde yapılır.
+- **iOS:** `ServerClock` sunucu-zaman ankrajı + `evaluationDate` (widget cihaz saatine güvenmez), `Today.supersedes` (eski bekleyen yanıt tamamlanmış durumu geri alamaz), check-in idempotency + aynı-hesap pending/widget hatası yönetimi, `AppState` oturum jenerasyonu/mutation revision/`expectedUser` sahiplik kontrolleri (gecikmiş yanıt/eski hesap state'i geri yazamaz), `LocalNotifications` kilitli scheduleRevision + `applySchedule` (eski sync yeni planı iptal edemez), oturum düşüş bildirimi hesap-sahipli (eski kullanıcının expiry'si yeni hesabı temizleyemez).
+- **Çift dil:** Tüm uygulama + widget tr/en (345 katalog anahtarı her iki dilde); uygulama içi dil seçimi, yeniden başlatmada korunur. APNs bağlı olmadığı için paywall "Haber gelmediğinde durumu görün" der (aile push vaadi yok). Bildirim statüleri dürüst haritalanır (`provider_accepted` ≠ iletildi).
+- **Gizlilik manifesti:** `PrivacyInfo.xcprivacy` UserDefaults (CA92.1/1C8F.1) + SystemBootTime (35F9.1/8FFB.1 — ServerClock elapsed+absolute kullanımı); uygulama ve widget paketinde doğrulandı. Ham uptime/boot-time iletilmez.
+- **Web:** `docs/index.html`/`privacy.html`/`site.js` (destek + gizlilik, çift dil, çerçevesiz/izleyicisiz) ve `web/public/index.html` (davet) — dil: `?lang=` → kayıtlı → `navigator.languages` → en; token regex `^[A-Za-z0-9_-]{43}$` tek parametre (yalnız sözdizimi kontrolü — sunucu isteği yok; geçerlilik uygulama içinde doğrulanır), nötr App Store URL (`apps.apple.com/app/id6812729799`), `[hidden]` CSS ve `referrer no-referrer`.
+- **Mağaza paketi (yerel taslak, ASC'ye yazılmadı):** `ios/StoreAssets/1.1.0/metadata.json` (tr/en-US/en-GB ad/alt başlık/anahtar/promo/açıklama/whatsNew + abonelik lokalizasyonları; uzunluklar sınır içinde), `scripts/store_screenshots.py --locale tr|en`, `AppStoreScreenshots` opt-in (`HY_CAPTURE_STORE_SCREENSHOTS=1`, `HY_SCREENSHOT_LOCALE`).
+
+**Doğrulama — 15 Ekim 2026**
+
+| Kontrol | Sonuç | Kanıt / sınır |
+|---|---|---|
+| Backend verify | 56/56 geçti | `npm run verify` (tsc + node:test, PGlite) |
+| npm audit | **0 açık** | Multer override exact **2.4.0** (GHSA-3pph-fpjx-jg34 ilk yamalı sürüm); `npm audit --audit-level=moderate` temiz |
+| HTTP entegrasyonu | 2/2 geçti | `HY_TEST_API_URL=http://127.0.0.1:3110/v1 npm run test:http` — Accept-Language tr-TR/en-US/fr-FR 401 lokalizasyonu + `America/Los_Angeles` timezone + kimliksiz `/invitations/preview` 401 sınırı |
+| iOS tam paket | 57 geçti, 2 atlandı (opt-in), 0 hata | `/tmp/hy-full-core.xcresult`; iPhone 17 / iOS 27.0, API 3110 |
+| Son hedefli iOS birim koşusu | 32/32 geçti | `/tmp/hy-domain-greeting.xcresult`; katalog selamlaması düzeltmesi ve Türkçe/İngilizce satır sonu regresyonu dahil DomainTests |
+| Release görsel yakalama | tr 2 akış + en 2 akış geçti | EN akışları katalog selamlaması düzeltmesinden sonra yeniden yakalandı (`/tmp/hy-shots-{iphone,ipad}-en2.xcresult`); OCR ile `02-ana-ekran`'da "Hello, Sarah" doğrulandı; yerel TLS 3143→3112 (test sertifikası yalnız simülatörlerde) |
+| Mobil web duman testi | Geçti | CDP `Emulation.setDeviceMetricsOverride` 390px+320px, tr+en; clientWidth=istenilen genişlik, scrollWidth≤clientWidth; dil butonu tıklaması; eksik/bozuk/çift token pasif, geçerli biçim etkin; `/invitations/status` isteği sıfır |
+| İmzalı arşiv | SUCCEEDED | `/tmp/hy-global-release/HerseyYolunda-final.xcarchive`; generic/platform=iOS Release, takım 2HBFPNCMR8 |
+| Yerel IPA export | SUCCEEDED | `/tmp/hy-global-release/export/HerseyYolunda.ipa` — yalnız export (yükleme/gönderim yok); Apple Distribution + "iOS Team Store Provisioning Profile" (app+widget), `aps-environment=production`, `get-task-allow=false` |
+| IPA içeriği | Doğrulandı | app+widget 1.1.0 (9); tr/en lproj + doğru çözülen selamlama (`Hello,\n%@`/`Merhaba,\n%@`); PrivacyInfo her iki pakette; Release API `https://hersey-yolunda-api.onrender.com/v1`; Firebase yok |
+
+- **Sınırlar:** Üretim deploy yapılmadı (backend v6 bekliyor); APNs `push_configured=false` — aile push teslimatı yok; StoreKit satın alma/geri yükleme yalnız test fixture'ı; gerçek cihaz, VoiceOver, TestFlight ve App Store incelemesi doğrulanmadı. Yerel görseller `ios/StoreAssets/1.1.0/review-screenshots/` (üretim yakalaması ayrı kapı).
+
 ## 34. Değişiklik geçmişi
 
 | Sürüm | Tarih | Değişiklik |
@@ -1565,7 +1599,8 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 | 1.5 | 16 Eylül 2026 | iCloud teşhisi ve projenin ~/Herşey Yolunda'ya taşınması; Render/Neon kararı (D-015), dış zamanlayıcı /tick (D-016), 33 backend testi, git deposu + Render Postgres blueprint + tick workflow; canlıya çıkış adımları netleştirildi. |
 | 1.6 | 16 Eylül 2026 | Freemium katmanı: StoreKit 2 aylık abonelik (199,99 TL, 1 ay deneme), paywall, Ailem gate'i, ASC ürün/fiyat/deneme yapılandırması, build 3 ve üç-parçalı inceleme gönderimi; ayrıca ayar kaydet butonlarının kalıcı pasif bug'ı, 12s→30s API timeout ve Info.plist sürüm değişkenleri düzeltildi. |
 | 1.7 | 28 Eylül 2026 | Kapsamlı iOS denetimi (40 bulgu), Aşama 1 düzeltmeleri (Y1 health decode + aps-environment, Y2 hatırlatma sekmesi, Y4 deneme uygunluğu, Y5 bildirim metni, Y8 pasif buton, O11 program doğrulaması, D1 UI test), sürüm değişkenlerinin project.yml'de kalıcılaştırılması, AppLaunchpad tarzı App Store görselleri (3 boyut) ve 1.0.1 (7) inceleme gönderimi. |
+| 1.8 | 15 Ekim 2026 | Küresel sürüm (1.1.0) yerel hazırlığı: hesap timezone'u + tr/en backend lokalizasyonu + Multer 2.4.0 (audit 0) (backend v6, deploy bekliyor); ServerClock/supersedes/oturum sahipliği/kilitli bildirim planlaması iOS tarafında; tam tr/en uygulama+widget; çift dilli destek/gizlilik/davet sayfaları (davet token'ı yalnız sözdizimsel — public durum ucu yok); yerel mağaza paketi (metadata + review görselleri); dağıtım imzalı yerel IPA doğrulandı. Üretim deploy, ASC yazımı ve gerçek cihaz açık kalır. |
 
 ---
 
-**Bir sonraki adım:** Kullanıcı `gh auth login` ile GitHub kimliğini doğrular (repo görünürlüğü kararı ile); Devin repo'yu oluşturup push eder ve `TICK_SECRET` secret'ını ayarlar. Kullanıcı render.com'da GitHub ile üye olup Blueprint akışıyla 3 gizli anahtarı girer ve servisi başlatır. Devin canlı `/v1/health` + `/v1/tick` doğrulaması yapar, iOS Release derlemesini canlı URL ile telefona kurar ve aile testine geçilir. Sonrası: APNs .p8 (canlı push) ve App Store gönderimi (5XR3QN2NJ6). Teknik kayıtlar Bölüm 33'tedir.
+**Bir sonraki adım:** Doğru yayın sırası: (1) kullanıcı onayıyla backend v6'yı Render'a deploy et (eski sunucu `/auth/device`'taki `timezone` alanını reddeder — yeni uygulama önce gönderilemez); (2) canlı `/v1/health` + migration doğrulaması; (3) üretim API'sine karşı gerçek mağaza ekran görüntülerinin yeniden yakalanması (AGENTS.md'deki production capture komutu); (4) ASC 1.1.0 metadata/ekran görüntüsü yazımı + imzalı export/upload; (5) inceleme sonrası yayın. Paralelde açık işler: APNs yapılandırması ve canlı teslimat, StoreKit sunucu doğrulaması, gerçek cihaz/VoiceOver/TestFlight, hukuki inceleme. Teknik kayıtlar Bölüm 33'tedir.

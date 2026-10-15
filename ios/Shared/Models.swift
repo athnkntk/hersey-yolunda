@@ -22,17 +22,34 @@ struct Today: Codable, Identifiable {
     let trustedContacts: Int
     let serverTime: Date
     var remindersEnabled: Bool? = nil
+    var timezone: String? = nil
+    var startsAt: Date? = nil
+    var nextScheduleMinute: Int? = nil
+    var nextGraceMinutes: Int? = nil
 
-    func isCurrent(at date: Date = Date()) -> Bool {
-        localDate == DateText.day(date) && date < closesAt
+    var accountZone: TimeZone { TimeZone(identifier: timezone ?? "Europe/Istanbul") ?? .current }
+    func isCurrent(at date: Date) -> Bool {
+        if let startsAt { return startsAt <= date && date < closesAt }
+        return localDate == DateText.day(date, timeZone: accountZone) && date < closesAt
+    }
+    func isCurrent() -> Bool {
+        guard let now = ServerClock.now() else { return false }
+        return isCurrent(at: now)
+    }
+    /// Sunucudan gelen bu durum kayıtlı (önbellekli) durumun yerine geçebilir mi?
+    /// Eski bir "bekliyor" yanıtı, onaylanmış bir "tamamlandı" durumunu asla geri alamaz.
+    func supersedes(_ cached: Today?) -> Bool {
+        guard let cached, cached.userId == userId else { return true }
+        if cached.id == id && cached.state == "completed" && state != "completed" { return false }
+        return serverTime >= cached.serverTime
     }
     var title: String {
-        guard isCurrent() else { return "Bugünkü durumu yenileyin" }
+        guard isCurrent() else { return L10n.text("Bugünkü durumu yenileyin") }
         switch state {
-        case "completed": return "Bugünkü haberiniz kaydedildi"
-        case "cancelled": return "Bugün kontrol devre dışı"
-        case "overdue", "alerted": return "Bugün henüz haber vermediniz"
-        default: return "Bugün bir haber verin"
+        case "completed": return L10n.text("Bugünkü haberiniz kaydedildi")
+        case "cancelled": return L10n.text("Bugün kontrol devre dışı")
+        case "overdue", "alerted": return L10n.text("Bugün henüz haber vermediniz")
+        default: return L10n.text("Bugün bir haber verin")
         }
     }
 }
@@ -50,6 +67,7 @@ struct PendingRegistration: Codable {
     let enabled: Bool
     let secret: String
     let createdAt: Date
+    var timezone: String? = nil
 }
 struct Receipt: Decodable { let checkinId: String; let status: String; let receivedAt: Date; let alreadyCompleted: Bool }
 struct Items<T: Decodable>: Decodable { let items: [T] }
@@ -58,12 +76,13 @@ struct Relative: Decodable, Identifiable {
     let today: Today
     var id: String { profile.id }
     var isCompleted: Bool { today.isCurrent() && today.state == "completed" }
-    func status(at date: Date = Date()) -> String {
-        guard profile.enabled else { return "Günlük program kapalı" }
-        guard today.isCurrent(at: date) else { return "Güncel durum için yenileyin" }
-        if today.state == "completed" { return "Bugün iyi olduğunu bildirdi" }
-        if today.state == "cancelled" { return "Bugün kontrol devre dışı" }
-        return "Kontrol bekleniyor"
+    func status() -> String { status(at: ServerClock.now() ?? .distantPast) }
+    func status(at date: Date) -> String {
+        guard profile.enabled else { return L10n.text("Günlük program kapalı") }
+        guard today.isCurrent(at: date) else { return L10n.text("Güncel durum için yenileyin") }
+        if today.state == "completed" { return L10n.text("Bugün iyi olduğunu bildirdi") }
+        if today.state == "cancelled" { return L10n.text("Bugün kontrol devre dışı") }
+        return L10n.text("Kontrol bekleniyor")
     }
 }
 struct Relationship: Decodable, Identifiable {
@@ -86,9 +105,9 @@ struct Notice: Decodable, Identifiable {
     let createdAt: Date
     let subjectName: String
     var title: String {
-        if type == "completed" { return "\(subjectName) iyi olduğunu bildirdi." }
-        if type == "missed" { return "\(subjectName) bugün henüz haber vermedi. Aramak isteyebilirsiniz." }
-        return "Bugünkü haberinizi göndermeyi unutmayın."
+        if type == "completed" { return L10n.format("%@ iyi olduğunu bildirdi.", subjectName) }
+        if type == "missed" { return L10n.format("%@ bugün henüz haber vermedi. Aramak isteyebilirsiniz.", subjectName) }
+        return L10n.text("Bugünkü haberinizi göndermeyi unutmayın.")
     }
 }
 struct ScheduleValue: Decodable { let minute: Int; let grace: Int; let effectiveDate: String }
@@ -103,11 +122,52 @@ struct Health: Decodable { let status: String; let pushConfigured: Bool }
 struct BackendError: Decodable, LocalizedError {
     let code: String
     let message: String
-    var errorDescription: String? { message }
+    var errorDescription: String? { ErrorText.backendMessage(code: code) }
 }
 struct LocalError: LocalizedError {
     let message: String
     var errorDescription: String? { message }
+}
+
+struct WidgetFailure: Codable {
+    let userId: String
+    let code: String
+}
+
+/// Backend bildirim durumlarının ham değerlerini göstermeyen yerelleştirilmiş eşlemesi.
+enum NotificationStatusText {
+    static func message(_ status: String, language: String? = nil) -> String {
+        switch status {
+        case "queued": return L10n.text("Uygulamada kayıtlı", language: language)
+        case "provider_accepted": return L10n.text("İletim servisi kabul etti", language: language)
+        case "sending": return L10n.text("Gönderiliyor", language: language)
+        case "suppressed": return L10n.text("Gizlendi", language: language)
+        case "retryable_failed": return L10n.text("Tekrar deneniyor", language: language)
+        case "permanently_failed": return L10n.text("Gönderilemedi", language: language)
+        default: return L10n.text("Durum güncelleniyor", language: language)
+        }
+    }
+}
+
+enum ErrorText {
+    static func backendMessage(code: String) -> String {
+        let text = L10n.text(code)
+        return text == code ? L10n.text("internal_error") : text
+    }
+    static func message(for error: Error) -> String {
+        if let backend = error as? BackendError { return backendMessage(code: backend.code) }
+        if let local = error as? LocalError { return local.message }
+        if let url = error as? URLError {
+            switch url.code {
+            case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed:
+                return L10n.text("Bağlantı yok. İnternet bağlantınızı kontrol edip yeniden deneyin.")
+            case .timedOut, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed:
+                return L10n.text("Sunucuya ulaşılamadı. Biraz sonra yeniden deneyin.")
+            default: return L10n.text("internal_error")
+            }
+        }
+        return L10n.text("internal_error")
+    }
 }
 
 struct PendingCheckIn: Codable {
@@ -125,26 +185,55 @@ struct WidgetSnapshot: Codable {
 }
 
 enum DateText {
-    static func day(_ date: Date) -> String {
+    static func calendar(timeZone: TimeZone) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return calendar
+    }
+    static func day(_ date: Date, timeZone: TimeZone = .current) -> String {
         let formatter = DateFormatter()
+        formatter.calendar = calendar(timeZone: timeZone)
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "Europe/Istanbul")
+        formatter.timeZone = timeZone
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
     }
-    static func time(_ date: Date) -> String {
+    static func time(_ date: Date, timeZone: TimeZone, locale: Locale = L10n.locale) -> String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "tr_TR")
-        formatter.timeZone = TimeZone(identifier: "Europe/Istanbul")
-        formatter.dateFormat = "HH:mm"
+        formatter.locale = locale
+        formatter.timeZone = timeZone
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
         return formatter.string(from: date)
     }
-    static func stamp(_ date: Date) -> String {
+    static func stamp(_ date: Date, timeZone: TimeZone, locale: Locale = L10n.locale) -> String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "tr_TR")
-        formatter.timeZone = TimeZone(identifier: "Europe/Istanbul")
-        formatter.dateFormat = "d MMMM · HH:mm"
+        formatter.locale = locale
+        formatter.timeZone = timeZone
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+    static func headerDay(_ date: Date, timeZone: TimeZone, locale: Locale = L10n.locale) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = timeZone
+        formatter.setLocalizedDateFormatFromTemplate("dMMM")
         return formatter.string(from: date)
     }
     static func iso(_ date: Date) -> String { ISO8601DateFormatter().string(from: date) }
+    static func parseISO(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: value) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
+    }
+    static func httpDate(_ value: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "GMT")
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
+        return formatter.date(from: value)
+    }
 }

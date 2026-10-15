@@ -2,9 +2,9 @@
 
 ## Project location
 
-- The project lives at `~/HerseyYolunda` (NOT ~/Documents — iCloud Desktop&Documents sync caused multi-second file-read stalls and random hangs; do not move it back into an iCloud-synced folder).
+- The project lives at `~/Herşey Yolunda` (NOT ~/Documents — iCloud Desktop&Documents sync caused multi-second file-read stalls and random hangs; do not move it back into an iCloud-synced folder).
 - Debug LAN API host is `Atahan-MacBook-Air.local` (IP-independent via mDNS; NSAllowsLocalNetworking covers it). LAN backend: HOST=0.0.0.0 npm run dev in backend/.
-- Production target is Render (see render.yaml: free web service + free 30-day Postgres, SCHEDULER_MODE=external). The GitHub Actions workflow .github/workflows/tick.yml pings /v1/tick every 10 minutes using secrets.TICK_SECRET and vars.API_URL.
+- Production target is Render + Supabase/Postgres (see render.yaml and the 16 September 2026 record in PLAN.md section 33: Render free web service `hersey-yolunda-api` on the Supabase Supavisor session pooler, SCHEDULER_MODE=external). The GitHub Actions workflow .github/workflows/tick.yml pings /v1/tick every 10 minutes using secrets.TICK_SECRET and vars.API_URL.
 - Set them after deploy: gh secret set TICK_SECRET; gh variable set API_URL https://<service>.onrender.com
 
 ## Scope
@@ -27,14 +27,14 @@
 - Production requires DATABASE_URL, DATA_ENCRYPTION_KEY (32-byte hex), LOOKUP_KEY. Signup has no SMS dependency. Apple-linked recovery is not implemented; never imply it is available.
 - Invitations accept either a 256-bit token/link or a rate-limited 12-character code, not an account ID. Owner authorization is mandatory. QR generation uses CoreImage and requests no camera permission.
 - APNs transport requires explicit APNS_ENABLED=true and production credentials; local tests inject a fake transport.
-- Dependencies are pinned. Multer 2.3.0 override addresses advisories in Nest's transitive dependency. Do not bypass security checks or enable dependency install scripts without reviewing them.
+- Dependencies are pinned. Multer 2.4.0 override keeps Nest's transitive dependency at the first patched version (GHSA-3pph-fpjx-jg34). Do not bypass security checks or enable dependency install scripts without reviewing them.
 - Schema migrations are versioned in database.ts. All MVP transactions currently serialize via an advisory lock; do not claim production scalability without load testing.
 
 ## iOS
 
 - Regenerate the Xcode project: xcodegen generate in ios/.
 - Shared code is compiled into both the application and widget. Tokens belong in the shared Keychain, not UserDefaults.
-- The app links FirebaseCore + FirebaseMessaging via SPM (firebase-ios-sdk from 12.5.0); GoogleService-Info.plist lives in ios/App/. The widget does not link Firebase. FCM token is stored in UserDefaults under "fcmToken" until the Functions port consumes it.
+- The app and widget are bilingual (Turkish/English) via `ios/Shared/{tr,en}.lproj/Localizable.strings`; the in-app language override lives in `L10n` and persists across launches. The unused Firebase SDK was removed; Firebase scaffolding at the repo root is historical/inactive (see Deployment).
 - Release API URL is https://hersey-yolunda-api.onrender.com/v1 (project.yml); Debug uses the Mac LAN host; simulator verification overrides HY_API_URL=http://127.0.0.1:3100/v1. No production HTTP broadening.
 - Versions live only in project.yml (MARKETING_VERSION / CURRENT_PROJECT_VERSION) and reach both Info.plists via explicit `CFBundleShortVersionString: $(MARKETING_VERSION)` / `CFBundleVersion: $(CURRENT_PROJECT_VERSION)` entries in `info.properties`; never hand-edit the generated Info.plist (xcodegen overwrites it with literal 1.0/1, which is how the live "1.0 (4)" build shipped under ASC version 0.2.0). Any new upload must have CFBundleShortVersionString > 1.0 (ITMS-90062).
 - App Store upload: `xcodebuild … -configuration Release -destination 'generic/platform=iOS' -archivePath /tmp/hy-release/HerseyYolunda.xcarchive -allowProvisioningUpdates -authenticationKeyPath ~/private_keys/AuthKey_5XR3QN2NJ6.p8 -authenticationKeyID 5XR3QN2NJ6 -authenticationKeyIssuerID <issuer> archive`, then `-exportArchive` with an ExportOptions.plist (method app-store-connect, destination upload, teamID 2HBFPNCMR8, signingStyle automatic, manageAppVersionAndBuildNumber=false). `aps-environment` is `development` in the entitlements and flips to production at export; the App ID has the Push Notifications capability.
@@ -48,11 +48,10 @@
 
 ## Deployment
 
-- Firebase decision (v1.4): backend moves to Cloud Functions + Firestore + FCM + Cloud Scheduler; see the v1.4 record in PLAN.md section 33 and firebase.json / firestore.rules / functions/ at repo root.
-- Scaffolding validated by JSON syntax checks only; versions in functions/package.json must be pinned and verified at first `firebase deploy`.
-- The user must create the Firebase project, enable Blaze, select europe-west1 for Firestore, and download GoogleService-Info.plist — these require their Google account.
-- The Docker/Caddy stack (docker-compose.yml, web/) remains as an alternative; it is no longer the primary path after the Firebase decision.
-- web/public contains the invite landing page and .well-known/apple-app-site-association; web/Caddyfile serves AASA as application/json, rewrites /invite to the landing page and proxies /v1/* to the api.
+- Active path (D-015): Render web service `hersey-yolunda-api` + Supabase/Postgres per render.yaml; `SCHEDULER_MODE=external`, GitHub Actions `/v1/tick` keeps it warm. Backend v6 (timezone + localization) must deploy BEFORE the 1.1.0 app ships: the old server rejects the new `/auth/device` timezone field.
+- Firebase migration (v1.4 record) is historical/inactive: firebase.json / firestore.rules / functions/ remain as scaffolding at the repo root, but Render+Supabase superseded that decision and the iOS Firebase SDK was removed. Do not treat it as the active backend.
+- The Docker/Caddy stack (docker-compose.yml, web/) remains as an alternative self-host path.
+- web/public contains the bilingual invite landing page and .well-known/apple-app-site-association; web/Caddyfile serves AASA as application/json, rewrites /invite to the landing page and proxies /v1/* to the api. docs/ contains the bilingual support + privacy pages (docs/site.js language switching).
 - Docker is not installed locally: compose/Caddy/Dockerfile are validated by syntax checks only; end-to-end TLS verification must run on the live server.
 - HTTPS invite links activate only after: domain + DNS + live server, Associated Domains entitlement (applinks:<domain>) in Xcode, and HY_INVITE_DOMAIN set in ios/project.yml. Until then the app falls back to the herseyyolunda:// custom scheme.
 - App Store URL placeholder lives in web/public/index.html (APP_STORE_URL constant); update it only when the listing is live.
@@ -65,10 +64,11 @@
 - Do not claim legal compliance, user-study success, App Store approval, push delivery or successful restore tests without evidence.
 ## Store screenshots
 
-- Capture: Release + production API, per simulator (`iPhone 17 Pro Max`, `iPad Pro 13-inch (M5)`):
-  `xcodebuild -project HerseyYolunda.xcodeproj -scheme HerseyYolunda -configuration Release -destination 'platform=iOS Simulator,name=<device>' -derivedDataPath /tmp/HerSeyYolundaAudit HY_API_URL=https://hersey-yolunda-api.onrender.com/v1 ENABLE_TESTABILITY=YES CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- -parallel-testing-enabled NO -only-testing:YolundaUITests/AppStoreScreenshots/testCaptureStoreScreenshots -resultBundlePath /tmp/hy-shots-<dev>.xcresult TEST_RUNNER_HY_API_URL=https://hersey-yolunda-api.onrender.com/v1 test`
+- The `AppStoreScreenshots` test is opt-in: it skips unless `HY_CAPTURE_STORE_SCREENSHOTS=1` (TEST_RUNNER_ prefixed equivalent also works); screenshot language is `HY_SCREENSHOT_LOCALE` (tr|en, default tr).
+- Capture: Release + production API, per simulator (`iPhone 17 Pro Max`, `iPad Pro 13-inch (M5)`) and per locale (tr|en):
+  `xcodebuild -project HerseyYolunda.xcodeproj -scheme HerseyYolunda -configuration Release -destination 'platform=iOS Simulator,name=<device>' -derivedDataPath /tmp/HerSeyYolundaAudit HY_API_URL=https://hersey-yolunda-api.onrender.com/v1 ENABLE_TESTABILITY=YES CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- -parallel-testing-enabled NO -only-testing:YolundaUITests/AppStoreScreenshots/testCaptureStoreScreenshots -resultBundlePath /tmp/hy-shots-<dev>-<locale>.xcresult TEST_RUNNER_HY_API_URL=https://hersey-yolunda-api.onrender.com/v1 TEST_RUNNER_HY_CAPTURE_STORE_SCREENSHOTS=1 TEST_RUNNER_HY_SCREENSHOT_LOCALE=<locale> test`
 - Status bar: keep `while true; do xcrun simctl status_bar <udid> override --time "9:41" --dataNetwork wifi --wifiBars 3 --cellularBars 4 --batteryLevel 100; sleep 5; done` running during the test; kill it after. Verify with `xcrun simctl io <udid> screenshot` first.
 - Export raw PNGs: `xcrun xcresulttool export attachments --path /tmp/hy-shots-<dev>.xcresult --output-path /tmp/hy-raw/<iphone|ipad>/` then rename per manifest.json.
 - Seed reuse (rate limit is 10 registrations/hour/IP; each fresh run registers Ayşe): refresh Fatma/Mehmet tokens host-side via POST /auth/refresh, then `xcrun simctl spawn <udid> launchctl setenv HY_SEED_FATMA_AT <access>` / `HY_SEED_MEHMET_AT <access>` / `HY_SEED_KEEP 1`. Without them the test registers seeds and deletes them in tearDown; with KEEP it skips seed deletion — delete via DELETE /me {"confirmation":"HESABIMI SİL"}. UIPasteboard is unusable in the runner (deadlocks on paste consent).
 - Invitation `label` must be one of the backend enum values (Oğlum, Kızım, Eşim, Kardeşim, Torunum, Yakınım, Diğer); anything else (e.g. "Annem") is a 400 invalid_input. The test seeds Ayşe's share_mine invitation accepted by Fatma to populate "Benim haberimi alanlar".
-- Compose: `/tmp/hy-venv/bin/python scripts/store_screenshots.py --raw /tmp/hy-raw --out ios/StoreAssets/screenshots` (venv: `python3 -m venv /tmp/hy-venv && /tmp/hy-venv/bin/pip install pillow`).
+- Compose: `/tmp/hy-venv/bin/python scripts/store_screenshots.py --locale <tr|en> --raw /tmp/hy-raw --out ios/StoreAssets/screenshots` (venv: `python3 -m venv /tmp/hy-venv && /tmp/hy-venv/bin/pip install pillow`). Local review captures (not production) live under `ios/StoreAssets/1.1.0/review-screenshots/`.

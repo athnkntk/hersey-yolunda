@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>tr</string>
+	<string>en</string>
 	<key>CFBundleDisplayName</key>
 	<string>Herşey Yolunda</string>
 	<key>CFBundleExecutable</key>
@@ -15,6 +15,7 @@
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>tr</string>
+		<string>en</string>
 	</array>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
@@ -35,8 +36,6 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>FirebaseAppDelegateProxyEnabled</key>
-	<false/>
 	<key>HYAPIURL</key>
 	<string>$(HY_API_URL)</string>
 	<key>HYInviteDomain</key>

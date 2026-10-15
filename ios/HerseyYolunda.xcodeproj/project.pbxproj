@@ -20,22 +20,25 @@
 		50FA57D5BEF9861AC280FF06 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0341E768B9A001A6556558C5 /* PrivacyInfo.xcprivacy */; };
 		57EC44C4E6081ECBAADDD3C4 /* SettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0AFF6DB1AF456D9A54CDBBB /* SettingsViews.swift */; };
 		5A87A54F4DA8611843BA1BCC /* InvitationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A82C47280EB89EE3E9C20AE /* InvitationTests.swift */; };
-		5BAADF0C2ECF95E0A3084AE4 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = FA6A3412E28225F3105FC559 /* FirebaseCore */; };
+		5A9112649FCB1530D7D3B76A /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 3870FA647E6A7E89C5745C2A /* Localizable.strings */; };
+		606E02D83009FCFC88ABD22D /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = D79DCC9349E6518868BA6C80 /* Localization.swift */; };
 		74CE28225816C4363B955F6E /* AppStoreScreenshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC51AEAD6731032975FFF6E6 /* AppStoreScreenshots.swift */; };
 		8B36BB366DD9E14772349E71 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E4B1B3F8F1002DD1AF199EF /* PaywallView.swift */; };
 		8C5DF5FD68AED7A13B03BBA4 /* NotificationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8404A9A8B27060B25E4C536E /* NotificationDelegate.swift */; };
+		99E79858E1BA0AA10B0107C5 /* ServerClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = B325A5BB055357E4E77148E0 /* ServerClock.swift */; };
 		9C30081954ABDCFBCF46E9DF /* LocalNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DCF945ECEBC77DB416D7FE3 /* LocalNotifications.swift */; };
 		A3F64A35F6868529CDD3AC8D /* IntentIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36264A741C9B23F43D7BC863 /* IntentIntegrationTests.swift */; };
 		A83EF695FC2CE88D5E5E84B3 /* FamilyViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80EBE361524FB42B9D6DAB94 /* FamilyViews.swift */; };
+		AE480567D7DD6352D9BFC461 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 3870FA647E6A7E89C5745C2A /* Localizable.strings */; };
 		B57103EA20914E2672CE22F9 /* StoreKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA2A290405C0F072FD50895 /* StoreKitManager.swift */; };
 		C470FA2FC8CADC776720698F /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55EB10FEC6360CCFEEC29DA3 /* APIClient.swift */; };
+		C66C091E386A9662CA4B7440 /* ServerClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = B325A5BB055357E4E77148E0 /* ServerClock.swift */; };
 		CD50F2B6E6213F731F98AB6F /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0341E768B9A001A6556558C5 /* PrivacyInfo.xcprivacy */; };
 		D5CED389451A3588E971BED4 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55EB10FEC6360CCFEEC29DA3 /* APIClient.swift */; };
 		D854EE00942C0A95A62994BD /* InvitationInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8241F8156F114B1D34E73366 /* InvitationInput.swift */; };
-		E38E0C33478F231232FBF14F /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 9D892F1D06CD6CA0C9D91961 /* FirebaseMessaging */; };
 		E4AFD753F02C11DF440532AE /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42220B1A9952F6DE6107889 /* Models.swift */; };
 		F21EFB96C9DBE0BE0317366B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9AC6E9680677D0DB8CD88D44 /* Assets.xcassets */; };
-		FC9A059470C4B29BA5EE57B9 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = BA535B5A264E3D560460679A /* GoogleService-Info.plist */; };
+		F8C905831030253EFFCA7637 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = D79DCC9349E6518868BA6C80 /* Localization.swift */; };
 		FD0E1D4D4B84DB7829BD1AA2 /* InvitationInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8241F8156F114B1D34E73366 /* InvitationInput.swift */; };
 		FF13FEDAFF34AA4DC9402D1A /* HerseyYolundaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE5E77719387D0FA5137B677 /* HerseyYolundaApp.swift */; };
 /* End PBXBuildFile section */
@@ -86,6 +89,7 @@
 		12F103826D9EBB455492B52D /* HerseyYolunda.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HerseyYolunda.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1A82C47280EB89EE3E9C20AE /* InvitationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvitationTests.swift; sourceTree = "<group>"; };
 		1FB37A5FE4C66808DC8ED866 /* TransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportTests.swift; sourceTree = "<group>"; };
+		30FB3D3D6124BFC4345DC8C1 /* tr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = tr; path = tr.lproj/Localizable.strings; sourceTree = "<group>"; };
 		36264A741C9B23F43D7BC863 /* IntentIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentIntegrationTests.swift; sourceTree = "<group>"; };
 		366BC0C736FF37EED19A55EE /* CheckInUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckInUITests.swift; sourceTree = "<group>"; };
 		39FE7B14CF67BE2B4B22BDD4 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
@@ -97,6 +101,7 @@
 		80EBE361524FB42B9D6DAB94 /* FamilyViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyViews.swift; sourceTree = "<group>"; };
 		8241F8156F114B1D34E73366 /* InvitationInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvitationInput.swift; sourceTree = "<group>"; };
 		8404A9A8B27060B25E4C536E /* NotificationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationDelegate.swift; sourceTree = "<group>"; };
+		86DAB440123B0F444E1C34E2 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		8E7154523A77B4BA07EC2CE8 /* YolundaWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YolundaWidget.swift; sourceTree = "<group>"; };
 		9AC6E9680677D0DB8CD88D44 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		9D505906E69E7632F2FD8D60 /* YolundaWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = YolundaWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -105,23 +110,12 @@
 		AAA2A290405C0F072FD50895 /* StoreKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitManager.swift; sourceTree = "<group>"; };
 		AB9BD57C661BE934F2F09C7F /* CheckInIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckInIntent.swift; sourceTree = "<group>"; };
 		AE5E77719387D0FA5137B677 /* HerseyYolundaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HerseyYolundaApp.swift; sourceTree = "<group>"; };
-		BA535B5A264E3D560460679A /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		B325A5BB055357E4E77148E0 /* ServerClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerClock.swift; sourceTree = "<group>"; };
 		CC51AEAD6731032975FFF6E6 /* AppStoreScreenshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreScreenshots.swift; sourceTree = "<group>"; };
 		CEB0DA05729B3882DE5EDF60 /* Widget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Widget.entitlements; sourceTree = "<group>"; };
+		D79DCC9349E6518868BA6C80 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		E0AFF6DB1AF456D9A54CDBBB /* SettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViews.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXFrameworksBuildPhase section */
-		044E4DE740FF010FEE1C8D42 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				5BAADF0C2ECF95E0A3084AE4 /* FirebaseCore in Frameworks */,
-				E38E0C33478F231232FBF14F /* FirebaseMessaging in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		1A67DB15B22B66FF230D4562 /* Shared */ = {
@@ -130,9 +124,12 @@
 				55EB10FEC6360CCFEEC29DA3 /* APIClient.swift */,
 				AB9BD57C661BE934F2F09C7F /* CheckInIntent.swift */,
 				8241F8156F114B1D34E73366 /* InvitationInput.swift */,
+				D79DCC9349E6518868BA6C80 /* Localization.swift */,
 				5DCF945ECEBC77DB416D7FE3 /* LocalNotifications.swift */,
 				A42220B1A9952F6DE6107889 /* Models.swift */,
 				0341E768B9A001A6556558C5 /* PrivacyInfo.xcprivacy */,
+				B325A5BB055357E4E77148E0 /* ServerClock.swift */,
+				3870FA647E6A7E89C5745C2A /* Localizable.strings */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -176,7 +173,6 @@
 				39FE7B14CF67BE2B4B22BDD4 /* AppState.swift */,
 				9AC6E9680677D0DB8CD88D44 /* Assets.xcassets */,
 				80EBE361524FB42B9D6DAB94 /* FamilyViews.swift */,
-				BA535B5A264E3D560460679A /* GoogleService-Info.plist */,
 				AE5E77719387D0FA5137B677 /* HerseyYolundaApp.swift */,
 				A2A1EA66F8B5C7F63A9BE55E /* Info.plist */,
 				8404A9A8B27060B25E4C536E /* NotificationDelegate.swift */,
@@ -235,7 +231,6 @@
 			buildPhases = (
 				009B86FEA5D147776304A7A8 /* Sources */,
 				9BB712AB6F958C29D77254A7 /* Resources */,
-				044E4DE740FF010FEE1C8D42 /* Frameworks */,
 				122DB1CCFB1C5356EC5D9249 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
@@ -245,8 +240,6 @@
 			);
 			name = HerseyYolunda;
 			packageProductDependencies = (
-				FA6A3412E28225F3105FC559 /* FirebaseCore */,
-				9D892F1D06CD6CA0C9D91961 /* FirebaseMessaging */,
 			);
 			productName = HerseyYolunda;
 			productReference = 12F103826D9EBB455492B52D /* HerseyYolunda.app */;
@@ -322,12 +315,10 @@
 			knownRegions = (
 				Base,
 				en,
+				tr,
 			);
 			mainGroup = A0636D26A8019CDD3BD3AF6B;
 			minimizedProjectReferenceProxies = 1;
-			packageReferences = (
-				6DB79DFE3B8E51EEB7665420 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
-			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E372501FCF7D1F163CF55A93 /* Products */;
 			projectDirPath = "";
@@ -346,6 +337,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AE480567D7DD6352D9BFC461 /* Localizable.strings in Resources */,
 				50FA57D5BEF9861AC280FF06 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -355,7 +347,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F21EFB96C9DBE0BE0317366B /* Assets.xcassets in Resources */,
-				FC9A059470C4B29BA5EE57B9 /* GoogleService-Info.plist in Resources */,
+				5A9112649FCB1530D7D3B76A /* Localizable.strings in Resources */,
 				CD50F2B6E6213F731F98AB6F /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -374,9 +366,11 @@
 				FF13FEDAFF34AA4DC9402D1A /* HerseyYolundaApp.swift in Sources */,
 				D854EE00942C0A95A62994BD /* InvitationInput.swift in Sources */,
 				9C30081954ABDCFBCF46E9DF /* LocalNotifications.swift in Sources */,
+				F8C905831030253EFFCA7637 /* Localization.swift in Sources */,
 				462C3B1D49C33F4CA175B06C /* Models.swift in Sources */,
 				8C5DF5FD68AED7A13B03BBA4 /* NotificationDelegate.swift in Sources */,
 				8B36BB366DD9E14772349E71 /* PaywallView.swift in Sources */,
+				C66C091E386A9662CA4B7440 /* ServerClock.swift in Sources */,
 				57EC44C4E6081ECBAADDD3C4 /* SettingsViews.swift in Sources */,
 				B57103EA20914E2672CE22F9 /* StoreKitManager.swift in Sources */,
 			);
@@ -390,7 +384,9 @@
 				17F77DC88BF96D93A7B79856 /* CheckInIntent.swift in Sources */,
 				FD0E1D4D4B84DB7829BD1AA2 /* InvitationInput.swift in Sources */,
 				2AE068E25D329CDCC153917F /* LocalNotifications.swift in Sources */,
+				606E02D83009FCFC88ABD22D /* Localization.swift in Sources */,
 				E4AFD753F02C11DF440532AE /* Models.swift in Sources */,
+				99E79858E1BA0AA10B0107C5 /* ServerClock.swift in Sources */,
 				405391E86B4B83FC01D9D3D8 /* YolundaWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -434,6 +430,18 @@
 			targetProxy = ADAA9E81F893265133DFBAE1 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		3870FA647E6A7E89C5745C2A /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				86DAB440123B0F444E1C34E2 /* en */,
+				30FB3D3D6124BFC4345DC8C1 /* tr */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		1EF2FFFD505377D58856F6F1 /* Debug */ = {
@@ -555,7 +563,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 2HBFPNCMR8;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -578,7 +586,7 @@
 				HY_API_URL = "http://Atahan-MacBook-Air.local:3000/v1";
 				HY_INVITE_DOMAIN = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 1.1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -662,7 +670,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 2HBFPNCMR8;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -679,7 +687,7 @@
 				HY_API_URL = "https://hersey-yolunda-api.onrender.com/v1";
 				HY_INVITE_DOMAIN = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 1.1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -756,30 +764,6 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		6DB79DFE3B8E51EEB7665420 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 12.5.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		9D892F1D06CD6CA0C9D91961 /* FirebaseMessaging */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 6DB79DFE3B8E51EEB7665420 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseMessaging;
-		};
-		FA6A3412E28225F3105FC559 /* FirebaseCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 6DB79DFE3B8E51EEB7665420 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseCore;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = B8424B37A635FC3CA6F1B027 /* Project object */;
 }

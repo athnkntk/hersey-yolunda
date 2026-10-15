@@ -126,6 +126,16 @@ export class Database {
       );
       ALTER TABLE invitations ADD COLUMN IF NOT EXISTS code_hash TEXT;
       CREATE UNIQUE INDEX IF NOT EXISTS invitation_code ON invitations(code_hash) WHERE code_hash IS NOT NULL;
+    `, `
+      ALTER TABLE occurrences ADD COLUMN timezone TEXT;
+      ALTER TABLE occurrences ADD COLUMN starts_at TIMESTAMPTZ;
+      UPDATE occurrences o SET timezone=u.timezone, starts_at=(o.local_date::timestamp AT TIME ZONE u.timezone) FROM users u WHERE u.id=o.user_id;
+      ALTER TABLE occurrences ALTER COLUMN timezone SET NOT NULL;
+      ALTER TABLE occurrences ALTER COLUMN starts_at SET NOT NULL;
+      ALTER TABLE devices ADD COLUMN locale TEXT NOT NULL DEFAULT 'tr' CHECK (locale IN ('tr','en'));
+      ALTER TABLE sessions ADD COLUMN refresh_request_hash TEXT;
+      ALTER TABLE sessions ADD COLUMN refresh_response_encrypted TEXT;
+      ALTER TABLE sessions ADD COLUMN refresh_replay_until TIMESTAMPTZ;
     `];
     await this.transaction(async db => {
       await db.query('CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())');

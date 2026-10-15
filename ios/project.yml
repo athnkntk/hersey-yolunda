@@ -8,8 +8,8 @@ settings:
     SWIFT_VERSION: '5.0'
     GENERATE_INFOPLIST_FILE: YES
     TARGETED_DEVICE_FAMILY: '1,2'
-    MARKETING_VERSION: '1.0.2'
-    CURRENT_PROJECT_VERSION: '8'
+    MARKETING_VERSION: '1.1.0'
+    CURRENT_PROJECT_VERSION: '9'
     DEVELOPMENT_TEAM: '2HBFPNCMR8'
     CODE_SIGN_STYLE: Automatic
     HY_API_URL: ''
@@ -20,15 +20,14 @@ settings:
       SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
     Release:
       HY_API_URL: 'https://hersey-yolunda-api.onrender.com/v1'
-packages:
-  Firebase:
-    url: https://github.com/firebase/firebase-ios-sdk.git
-    from: 12.5.0
 targets:
   HerseyYolunda:
     type: application
     platform: iOS
-    sources: [App, Shared]
+    sources:
+      - path: App
+        excludes: [GoogleService-Info.plist]
+      - Shared
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.herseyyolunda.app
@@ -41,13 +40,12 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
-        CFBundleDevelopmentRegion: tr
-        CFBundleLocalizations: [tr]
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations: [tr, en]
         UILaunchScreen: {}
         HYAPIURL: $(HY_API_URL)
         HYInviteDomain: $(HY_INVITE_DOMAIN)
         HYKeychainGroup: $(AppIdentifierPrefix)com.herseyyolunda.shared
-        FirebaseAppDelegateProxyEnabled: NO
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         UIRequiresFullScreen: true
@@ -63,8 +61,6 @@ targets:
         aps-environment: development
     dependencies:
       - target: YolundaWidget
-      - package: Firebase
-        products: [FirebaseCore, FirebaseMessaging]
   YolundaWidget:
     type: app-extension
     platform: iOS
@@ -80,8 +76,8 @@ targets:
         CFBundleDisplayName: Herşey Yolunda
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        CFBundleDevelopmentRegion: tr
-        CFBundleLocalizations: [tr]
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations: [tr, en]
         HYAPIURL: $(HY_API_URL)
         HYKeychainGroup: $(AppIdentifierPrefix)com.herseyyolunda.shared
         NSAppTransportSecurity:

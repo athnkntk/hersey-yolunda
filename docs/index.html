@@ -1,29 +1,54 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Herşey Yolunda — Destek</title>
+<meta name="referrer" content="no-referrer">
+<title>Herşey Yolunda — Support</title>
 <style>
   body { font-family: -apple-system, system-ui, sans-serif; max-width: 680px; margin: 40px auto; padding: 0 20px; color: #1c2b24; line-height: 1.6; }
   h1 { color: #166043; } h2 { font-size: 1.15rem; margin-top: 2em; color: #166043; }
   a { color: #166043; }
+  .langs { text-align: right; margin-bottom: 1em; }
+  .lang-btn { border: 1px solid #166043; background: #fff; color: #166043; border-radius: 8px; padding: 6px 12px; font-size: 0.95rem; cursor: pointer; margin-left: 6px; }
+  .lang-btn[aria-pressed="true"] { background: #166043; color: #fff; }
 </style>
 </head>
-<body>
+<body data-page="support">
+<div class="langs">
+  <button type="button" class="lang-btn" lang="tr" aria-label="Türkçe" aria-pressed="false">Türkçe</button>
+  <button type="button" class="lang-btn" lang="en" aria-label="English" aria-pressed="true">English</button>
+</div>
 <h1>Herşey Yolunda</h1>
-<p>Günlük "iyi olduğumu bildir" uygulaması — tek dokunuşla ailenize haber verin.</p>
+<p data-i18n="tagline">A daily “I'm OK” check-in — let your family hear from you with one tap.</p>
 
-<h2>Nasıl çalışır?</h2>
+<h2 data-i18n="howTitle">How it works</h2>
 <ol>
-  <li>Adınızı yazın — hesabınız bu cihaz için oluşur (şifre ve telefon gerekmez).</li>
-  <li>Yakınınızı davet bağlantısı, QR veya kod ile ekleyin.</li>
-  <li>Her gün tek dokunuşla "Ben iyiyim" bildirimi gönderin.</li>
-  <li>Bildirim gelmezse yakınlarınız uygulamada görür.</li>
+  <li data-i18n="how1">Enter your name — your account is created for this device (no phone number, email or SMS needed).</li>
+  <li data-i18n="how2">Add your relative with an invitation link, QR or code.</li>
+  <li data-i18n="how3">Send your “I'm OK” update with one daily tap.</li>
+  <li data-i18n="how4">Relatives you allow see your update in the app.</li>
 </ol>
 
-<h2>Destek</h2>
-<p>Sorular ve hata bildirimleri: <a href="mailto:atahankantik@gmail.com">atahankantik@gmail.com</a></p>
-<p><a href="privacy.html">Gizlilik bildirimi</a></p>
+<h2 data-i18n="faqAccountTitle">Account and sign-in</h2>
+<p data-i18n="faqAccountBody">You create your account by entering only your name; there is no phone, email or SMS sign-in. Your name is not a credential. This version has no account recovery: if you lose your device or session you must create a new account and get family approval again. Restoring Apple purchases restores your subscription entitlement, not your app account or history.</p>
+
+<h2 data-i18n="faqRoutineTitle">Daily routine</h2>
+<p data-i18n="faqRoutineBody">Checking in requires a conscious “I'm OK” tap; confirmation appears only after the server records it, and an internet connection is required. Reminders are personal and depend on your notification permission. Schedules use the account time zone saved when the account was created; the account time zone does not silently follow travel. Schedule edits apply the next day; pausing today resumes the routine the next day.</p>
+
+<h2 data-i18n="faqConnectionsTitle">Connections and invitations</h2>
+<p data-i18n="faqConnectionsBody">You invite relatives with a link, QR or 12-character code. Invitations are single-use and valid for 48 hours. Sharing starts only after the person whose updates are shared approves it. At most 10 people can follow one person's updates. There is no location or health tracking, and the app never checks in on your behalf.</p>
+
+<h2 data-i18n="faqPremiumTitle">Premium</h2>
+<p data-i18n="faqPremiumBody">Personal check-ins, reminders and the widget are free. Inviting relatives and viewing family status and history require Premium. The price and any eligible trial are shown by the App Store. You can manage or cancel your subscription in the App Store; deleting your account does not cancel your subscription.</p>
+<p><a href="https://apps.apple.com/account/subscriptions" data-i18n="faqPremiumLink">Manage subscription in the App Store</a></p>
+
+<h2 data-i18n="faqNoUpdateTitle">If no update arrives</h2>
+<p data-i18n="faqNoUpdateBody">Check your relative's internet connection and notification permission, pull to refresh or retry, and call them on the phone if appropriate. Notifications can be delayed or unseen; the app does not guarantee delivery or verify safety. In an emergency, contact your local emergency services.</p>
+
+<h2 data-i18n="contactTitle">Support</h2>
+<p><span data-i18n="contactBody">Questions and bug reports:</span> <a href="mailto:atahankantik@gmail.com">atahankantik@gmail.com</a></p>
+<p><a href="privacy.html" data-lang-link="privacy.html" data-i18n="privacyLink">Privacy notice</a></p>
+<script src="site.js"></script>
 </body>
 </html>

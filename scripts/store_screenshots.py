@@ -6,6 +6,7 @@ Setup (venv intentionally outside the repo):
 
 Usage:
     /tmp/hy-venv/bin/python scripts/store_screenshots.py --raw /tmp/hy-raw --out ios/StoreAssets/screenshots
+    /tmp/hy-venv/bin/python scripts/store_screenshots.py --locale en --raw /tmp/hy-raw --out <out>
 
 Expects raw captures at <raw>/iphone/<name>.png (1320x2868) and <raw>/ipad/<name>.png
 (2064x2752). Writes finished PNGs into <out>/iphone-6.9/, <out>/iphone-6.5/ and
@@ -29,21 +30,37 @@ BRAND_COLOR = (0x8F, 0xCB, 0xA8)
 BEZEL_COLOR = (0x0B, 0x0B, 0x0C)
 STROKE_COLOR = (0x3A, 0x3A, 0x3C)
 
-# (output name, raw capture name, headline, subheadline)
-SHOTS = [
-    ("01-iyiyim", "02-ana-ekran", "Bir dokunuşla\n“İyiyim” deyin",
-     "Her gün tek dokunuş. Telefon numarası, SMS gerekmez."),
-    ("02-ailem", "04-ailem", "Takip değil,\nhaber",
-     "Konum yok, ölçüm yok. Sadece “bugün iyiyim”."),
-    ("03-rahat", "03-haber-verildi", "Aileniz\niçi rahat",
-     "Haberiniz kaydedilir; yakınlarınız uygulamada anında görür."),
-    ("04-davet", "05-davet", "Yakınınızı\nbir kodla ekleyin",
-     "QR veya 12 haneli kod. 48 saat geçerli, tek kullanımlık."),
-    ("05-saat", "06-kontrol-saati", "Saati siz\nbelirleyin",
-     "Hatırlatma saati ve bekleme süresi sizin elinizde."),
-    ("06-baslangic", "01-giris", "Adınızı yazın,\nbaşlayın",
-     "Hesabınız bu cihaz için saniyeler içinde oluşur."),
-]
+# (output name, raw capture name, headline, subheadline) per locale.
+SHOTS = {
+    "tr": [
+        ("01-iyiyim", "02-ana-ekran", "Bir dokunuşla\n“İyiyim” deyin",
+         "Her gün tek dokunuş. Telefon numarası, SMS gerekmez."),
+        ("02-ailem", "04-ailem", "Her gün\nbirbirinizden haber",
+         "Yakınlarınızın sizinle paylaşmayı seçtiği günlük haberleri görün."),
+        ("03-rahat", "03-haber-verildi", "Ailenize\nbir haber verin",
+         "Haberiniz kaydedilir; izin verdiğiniz yakınlarınız uygulamada görür."),
+        ("04-davet", "05-davet", "Yakınınızı\nbir kodla ekleyin",
+         "QR veya 12 karakterli kod. 48 saat geçerli, tek kullanımlık."),
+        ("05-saat", "06-kontrol-saati", "Saati siz\nbelirleyin",
+         "Hesabınızın saat diliminde hatırlatma ve bekleme süresini seçin."),
+        ("06-baslangic", "01-giris", "Adınızı yazın,\nbaşlayın",
+         "Cihaz hesabınızı oluşturun; Türkçe veya İngilizce kullanın."),
+    ],
+    "en": [
+        ("01-iyiyim", "02-ana-ekran", "One tap.\n“I'm OK.”",
+         "A simple daily check-in. No phone number or SMS to sign up."),
+        ("02-ailem", "04-ailem", "Stay close,\nwherever you are",
+         "View the daily updates your family chooses to share."),
+        ("03-rahat", "03-haber-verildi", "Let your family\nhear from you",
+         "Your check-in appears in the app after it is recorded."),
+        ("04-davet", "05-davet", "Connect with\nan invitation",
+         "Share a link, QR or 12-character code. Approval stays in your hands."),
+        ("05-saat", "06-kontrol-saati", "A routine that\nfits your day",
+         "Set your reminder and wait time in your account’s time zone."),
+        ("06-baslangic", "01-giris", "Your name.\nA simple start.",
+         "Create your device account and choose Turkish or English."),
+    ],
+}
 
 # Per-canvas layout. s scales every spec number to the canvas width.
 CANVASES = {
@@ -247,7 +264,10 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--raw", required=True, help="directory with iphone/ and ipad/ raw captures")
     parser.add_argument("--out", required=True, help="output directory")
+    parser.add_argument("--locale", choices=sorted(SHOTS), default="tr",
+                        help="marketing copy language (default: tr)")
     args = parser.parse_args()
+    shots = SHOTS[args.locale]
 
     failures = []
     outputs = {}
@@ -255,7 +275,7 @@ def main() -> int:
         out_dir = os.path.join(args.out, size_name)
         os.makedirs(out_dir, exist_ok=True)
         outputs[size_name] = []
-        for out_name, raw_name, headline, sub in SHOTS:
+        for out_name, raw_name, headline, sub in shots:
             raw_path = os.path.join(args.raw, cfg["raw"], f"{raw_name}.png")
             try:
                 screen = Image.open(raw_path).convert("RGBA")
@@ -272,7 +292,7 @@ def main() -> int:
             print(f"wrote {path} {image.size[0]}x{image.size[1]}")
 
     for size_name, preview in (("iphone-6.9", "preview-iphone.png"), ("ipad-13", "preview-ipad.png")):
-        if len(outputs[size_name]) == len(SHOTS):
+        if len(outputs[size_name]) == len(shots):
             sheet_path = os.path.join(args.out, preview)
             contact_sheet([Image.open(p) for p in sorted(outputs[size_name])], sheet_path)
             print(f"wrote {sheet_path}")

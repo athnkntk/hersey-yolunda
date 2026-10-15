@@ -4,15 +4,34 @@ import { randomUUID, randomBytes } from 'node:crypto';
 
 const base = process.env.HY_TEST_API_URL ?? 'http://127.0.0.1:3000/v1';
 const expectedMode = /^https:\/\//.test(base) ? 'production' : 'development';
-async function call(method: string, path: string, body?: any, token?: string, key?: string) {
-  const response = await fetch(base + path, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}), ...(key ? { 'Idempotency-Key': key } : {}) }, body: body ? JSON.stringify(body) : undefined });
-  return { status: response.status, data: await response.json() as any, cache: response.headers.get('cache-control') };
+async function call(method: string, path: string, body?: any, token?: string, key?: string, acceptLanguage?: string) {
+  const response = await fetch(base + path, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}), ...(key ? { 'Idempotency-Key': key } : {}), ...(acceptLanguage ? { 'accept-language': acceptLanguage } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  return { status: response.status, data: await response.json() as any, cache: response.headers.get('cache-control'), contentLanguage: response.headers.get('content-language') ?? '', serverTime: response.headers.get('x-server-time') ?? '' };
 }
-async function login() {
-  const auth = await call('POST', '/auth/device', { name: 'HTTP test', enabled: true, device_name: 'HTTP integration synthetic', registration_secret: randomBytes(32).toString('base64url') });
+async function login(timezone?: string) {
+  const auth = await call('POST', '/auth/device', { name: 'HTTP test', enabled: true, device_name: 'HTTP integration synthetic', registration_secret: randomBytes(32).toString('base64url'), ...(timezone ? { timezone } : {}) });
   assert.equal(auth.status, 200);
   return auth.data;
 }
+
+test('HTTP localization: Accept-Language controls error language and headers expose server time', async () => {
+  const iso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+  const turkish = await call('GET', '/me', undefined, undefined, undefined, 'tr-TR');
+  assert.equal(turkish.status, 401);
+  assert.equal(turkish.data.code, 'unauthorized');
+  assert.equal(turkish.contentLanguage, 'tr');
+  assert.equal(turkish.data.message, 'Lütfen yeniden giriş yapın.');
+  assert.match(turkish.serverTime, iso);
+  const english = await call('GET', '/me', undefined, undefined, undefined, 'en-US');
+  assert.equal(english.status, 401);
+  assert.equal(english.data.code, 'unauthorized');
+  assert.equal(english.contentLanguage, 'en');
+  assert.equal(english.data.message, 'Your session is no longer available. Open the app to continue.');
+  const unsupported = await call('GET', '/me', undefined, undefined, undefined, 'fr-FR');
+  assert.equal(unsupported.status, 401);
+  assert.equal(unsupported.data.code, 'unauthorized');
+  assert.equal(unsupported.contentLanguage, 'en');
+});
 
 test('HTTP contract: auth, validation, profile, invite, check-in, revocation and deletion', async () => {
   const health = await call('GET', '/health');
@@ -21,14 +40,20 @@ test('HTTP contract: auth, validation, profile, invite, check-in, revocation and
   assert.equal((await call('GET', '/me')).status, 401);
   assert.equal((await call('POST', '/auth/device', { name: '' })).status, 400);
   assert.equal((await call('POST', '/auth/otp/start', { phone: 'unused' })).status, 410);
-  const subject = await login(), viewer = await login();
+  const subject = await login('America/Los_Angeles'), viewer = await login();
   try {
     const profile = await call('PATCH', '/me/profile', { name: 'HTTP Test' }, subject.access_token);
     assert.equal(profile.data.name, 'HTTP Test');
+    assert.equal((await call('GET', '/me', undefined, subject.access_token)).data.timezone, 'America/Los_Angeles');
     const invitation = await call('POST', '/invitations', { direction: 'request_theirs', label: 'Yakınım' }, viewer.access_token);
     assert.equal(invitation.status, 200);
+    assert.equal((await call('POST', '/invitations/preview', { token: invitation.data.token })).status, 401);
     assert.equal((await call('POST', `/invitations/${invitation.data.id}/accept`, { token: invitation.data.token }, subject.access_token)).status, 200);
     const today = await call('GET', '/me/checkin/today', undefined, subject.access_token);
+    assert.equal(today.data.timezone, 'America/Los_Angeles');
+    assert.match(today.data.starts_at, /^\d{4}-\d{2}-\d{2}T/);
+    assert.equal(typeof today.data.next_schedule_minute, 'number');
+    assert.equal(typeof today.data.next_grace_minutes, 'number');
     const input = { occurrence_id: today.data.id, source: 'app', client_action_at: new Date().toISOString() };
     const key = randomUUID();
     const receipt = await call('POST', '/me/checkins', input, subject.access_token, key);

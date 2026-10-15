@@ -1,10 +1,18 @@
 import { connect } from 'node:http2';
 import { createPrivateKey, createSign, randomUUID } from 'node:crypto';
 import { Database } from './database';
+import { Language, pushBody } from './localization';
 
 export type DeliveryResult = 'accepted' | 'retry' | 'invalid_device' | 'failed';
 export interface PushTransport {
-  send(token: string, event: { id: string; type: string; expires: Date }): Promise<DeliveryResult>;
+  send(token: string, event: { id: string; type: string; expires: Date; locale?: Language }): Promise<DeliveryResult>;
+}
+
+export function pushPayload(event: { id: string; type: string; locale?: Language }) {
+  return {
+    aps: { alert: { title: 'Herşey Yolunda', body: pushBody(event.type, event.locale ?? 'tr') }, sound: 'default' },
+    event_id: event.id, event_type: event.type
+  };
 }
 
 export class APNsTransport implements PushTransport {
@@ -21,7 +29,7 @@ export class APNsTransport implements PushTransport {
     this.issuedAt = Date.now();
     return this.jwt;
   }
-  async send(token: string, event: { id: string; type: string; expires: Date }): Promise<DeliveryResult> {
+  async send(token: string, event: { id: string; type: string; expires: Date; locale?: Language }): Promise<DeliveryResult> {
     const authorization = this.authorization();
     return new Promise(resolve => {
       const client = connect(this.config.sandbox ? 'https://api.sandbox.push.apple.com' : 'https://api.push.apple.com');
@@ -45,7 +53,7 @@ export class APNsTransport implements PushTransport {
       request.on('data', () => undefined);
       request.on('error', () => finish('retry'));
       request.on('end', () => finish(status === 200 ? 'accepted' : status === 410 ? 'invalid_device' : status === 429 || status >= 500 ? 'retry' : 'failed'));
-      request.end(JSON.stringify({ aps: { alert: { title: 'Herşey Yolunda', body: event.type.startsWith('reminder') ? 'Bugünkü haberinizi göndermeyi unutmayın.' : 'Yakınınızdan yeni bir haber var.' }, sound: 'default' }, event_id: event.id }));
+      request.end(JSON.stringify(pushPayload(event)));
     });
   }
 }
@@ -62,7 +70,7 @@ export class NotificationWorker {
     for (let i = 0; i < limit; i++) {
       const claim = await this.db.transaction(async db => {
         const row = (await db.query(`SELECT d.id AS delivery_id,d.attempts,n.id,n.type,n.status AS notification_status,n.relationship_id,
-          o.state,o.closes_at,r.active,p.success,p.missed,v.token_encrypted,v.permission
+          o.state,o.closes_at,r.active,p.success,p.missed,v.token_encrypted,v.permission,v.locale
           FROM notification_deliveries d JOIN notifications n ON n.id=d.notification_id
           JOIN occurrences o ON o.id=n.occurrence_id JOIN devices v ON v.id=d.device_id
           LEFT JOIN relationships r ON r.id=n.relationship_id LEFT JOIN preferences p ON p.user_id=n.recipient_id
@@ -84,7 +92,7 @@ export class NotificationWorker {
       if (!claim) break;
       if (claim.suppressed) continue;
       let result: DeliveryResult;
-      try { result = await this.transport.send(this.decrypt(claim.token_encrypted), { id: claim.id, type: claim.type, expires: new Date(claim.closes_at) }); }
+      try { result = await this.transport.send(this.decrypt(claim.token_encrypted), { id: claim.id, type: claim.type, expires: new Date(claim.closes_at), locale: claim.locale }); }
       catch { result = 'retry'; }
       await this.db.transaction(async db => {
         const attempts = Number(claim.attempts) + 1;

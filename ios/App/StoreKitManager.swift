@@ -25,14 +25,16 @@ final class StoreKitManager: ObservableObject {
 
     func load() async {
         if ProcessInfo.processInfo.arguments.contains("--uitest-premium") { return }
-        guard product == nil else { return }
-        do {
-            product = try await Product.products(for: [Self.productID]).first
-            await refreshTrialEligibility()
-            if product == nil { error = "Abonelik bilgisi yüklenemedi. Lütfen yeniden deneyin." }
-        } catch {
-            if !isCancellationError(error) { self.error = "Mağazaya ulaşılamadı. Bağlantınızı kontrol edin." }
+        error = nil
+        if product == nil {
+            do {
+                product = try await Product.products(for: [Self.productID]).first
+                if product == nil { error = L10n.text("Abonelik bilgisi yüklenemedi. Lütfen yeniden deneyin.") }
+            } catch {
+                if !isCancellationError(error) { self.error = L10n.text("Mağazaya ulaşılamadı. Bağlantınızı kontrol edin.") }
+            }
         }
+        await refreshTrialEligibility()
         await refreshEntitlement()
     }
 
@@ -41,7 +43,8 @@ final class StoreKitManager: ObservableObject {
         for await result in Transaction.currentEntitlements {
             if case .verified(let transaction) = result,
                transaction.productID == Self.productID,
-               transaction.revocationDate == nil {
+               transaction.revocationDate == nil,
+               transaction.expirationDate.map({ $0 > Date() }) ?? true {
                 premium = true
             }
         }
@@ -50,6 +53,7 @@ final class StoreKitManager: ObservableObject {
 
     @discardableResult
     func purchase() async -> Bool {
+        error = nil
         guard let product else {
             await load()
             guard product != nil else { return false }
@@ -61,7 +65,7 @@ final class StoreKitManager: ObservableObject {
             switch try await product.purchase() {
             case .success(let verification):
                 guard case .verified(let transaction) = verification else {
-                    error = "Satın alma doğrulanamadı. Ücret alınmadıysa yeniden deneyin."
+                    error = L10n.text("Satın alma doğrulanamadı. Ücret alınmadıysa yeniden deneyin.")
                     return false
                 }
                 await transaction.finish()
@@ -70,26 +74,27 @@ final class StoreKitManager: ObservableObject {
             case .userCancelled:
                 return false
             case .pending:
-                error = "Satın alma onay bekliyor. Onaylandığında Premium otomatik açılır."
+                error = L10n.text("Satın alma onay bekliyor. Onaylandığında Premium otomatik açılır.")
                 return false
             @unknown default:
                 return false
             }
         } catch {
-            if !isCancellationError(error) { self.error = "Satın alma tamamlanamadı. Ücret alınmadıysa yeniden deneyin." }
+            if !isCancellationError(error) { self.error = L10n.text("Satın alma tamamlanamadı. Ücret alınmadıysa yeniden deneyin.") }
             return false
         }
     }
 
     func restore() async {
+        error = nil
         purchasing = true
         defer { purchasing = false }
         do {
             try await AppStore.sync()
             await refreshEntitlement()
-            if !isPremium { self.error = "Bu Apple hesabında etkin abonelik bulunamadı." }
+            if !isPremium { self.error = L10n.text("Bu Apple hesabında etkin abonelik bulunamadı.") }
         } catch {
-            if !isCancellationError(error) { self.error = "Geri yükleme başarısız. Apple hesabınızı kontrol edin." }
+            if !isCancellationError(error) { self.error = L10n.text("Geri yükleme başarısız. Apple hesabınızı kontrol edin.") }
         }
     }
 
@@ -107,5 +112,24 @@ final class StoreKitManager: ObservableObject {
                 }
             }
         }
+    }
+}
+
+enum BillingText {
+    static func duration(value: Int, unit: Product.SubscriptionPeriod.Unit, language: String = L10n.language) -> String {
+        let base: String
+        switch unit {
+        case .day: base = "duration.day"
+        case .week: base = "duration.week"
+        case .month: base = "duration.month"
+        case .year: base = "duration.year"
+        @unknown default: base = "duration.month"
+        }
+        let key = value == 1 ? "\(base).one" : "\(base).many"
+        return String(format: L10n.text(key, language: language), locale: L10n.locale, value)
+    }
+    /// StoreKit introductoryOffer'ın toplam süresi (period.value × periodCount).
+    static func offerDuration(value: Int, count: Int, unit: Product.SubscriptionPeriod.Unit, language: String = L10n.language) -> String {
+        duration(value: value * count, unit: unit, language: language)
     }
 }

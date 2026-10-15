@@ -7,24 +7,29 @@ import { ZodError } from 'zod';
 import { Database } from './database';
 import { APIError, Service } from './service';
 import { APNsTransport, NotificationWorker } from './notifications';
+import { errorMessage, languageFor } from './localization';
 
 @Controller('v1')
 class APIController {
   constructor(@Inject(Service) private service: Service) {}
   @All('*path')
   async handle(@Req() request: Request, @Res() response: Response) {
+    const language = languageFor(request.header('Accept-Language'));
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('Content-Language', language);
     try {
       const data = await this.service.request(request.method, request.path.replace(/^\/v1/, ''), request.body,
         request.headers.authorization?.replace(/^Bearer /, '') ?? '', request.header('Idempotency-Key') ?? '', request.ip ?? 'unknown');
+      response.setHeader('X-Server-Time', new Date().toISOString());
       response.json(data);
     } catch (error) {
-      if (error instanceof APIError) response.status(error.status).json({ code: error.code, message: error.message });
-      else if (error instanceof ZodError) response.status(400).json({ code: 'invalid_input', message: 'Bilgileri kontrol edip yeniden deneyin.' });
+      response.setHeader('X-Server-Time', new Date().toISOString());
+      if (error instanceof APIError) response.status(error.status).json({ code: error.code, message: errorMessage(error.code, error.message, language) });
+      else if (error instanceof ZodError) response.status(400).json({ code: 'invalid_input', message: errorMessage('invalid_input', 'Bilgileri kontrol edip yeniden deneyin.', language) });
       else {
         console.error('request_failed', error instanceof Error ? error.constructor.name : 'unknown');
-        response.status(500).json({ code: 'internal_error', message: 'İşlem tamamlanamadı. Yeniden deneyin.' });
+        response.status(500).json({ code: 'internal_error', message: errorMessage('internal_error', 'İşlem tamamlanamadı. Yeniden deneyin.', language) });
       }
     }
   }

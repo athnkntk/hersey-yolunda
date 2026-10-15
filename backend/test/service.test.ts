@@ -155,3 +155,158 @@ test('family-only role has no personal reminders and activation does not backdat
   assert.equal(today.reminders_enabled, false);
   assert.equal((await checkin(user)).status, 'completed');
 });
+
+async function isolated(at: Date) {
+  const database = new Database();
+  await database.initialize();
+  let localClock = at;
+  const local = new Service(database, { mode: 'test', encryptionKey: Buffer.alloc(32, 6), lookupKey: 'isolated-calendar', clock: () => localClock });
+  const register = (timezone: string, ip: string) => local.request('POST', '/auth/device',
+    { name: 'Ayşe', enabled: true, device_name: 'Calendar', registration_secret: randomBytes(32).toString('base64url'), timezone }, '', '', ip);
+  const tap = async (user: any) => {
+    const today = await local.request('GET', '/me/checkin/today', {}, user.access_token);
+    return local.request('POST', '/me/checkins', { occurrence_id: today.id, source: 'app', client_action_at: localClock.toISOString() }, user.access_token, randomUUID());
+  };
+  return { database, local, register, tap, setClock: (value: Date) => { localClock = value; } };
+}
+
+test('occurrence calendar honours each account timezone', async t => {
+  const cases = [
+    { timezone: 'Europe/Istanbul', local_date: '2026-10-15', starts_at: '2026-10-14T21:00:00.000Z', due_at: '2026-10-15T06:00:00.000Z', closes_at: '2026-10-15T21:00:00.000Z', effective: '2026-10-16' },
+    { timezone: 'America/Los_Angeles', local_date: '2026-10-14', starts_at: '2026-10-14T07:00:00.000Z', due_at: '2026-10-14T16:00:00.000Z', closes_at: '2026-10-15T07:00:00.000Z', effective: '2026-10-15' },
+    { timezone: 'Asia/Tokyo', local_date: '2026-10-15', starts_at: '2026-10-14T15:00:00.000Z', due_at: '2026-10-15T00:00:00.000Z', closes_at: '2026-10-15T15:00:00.000Z', effective: '2026-10-16' },
+    { timezone: 'Asia/Kathmandu', local_date: '2026-10-15', starts_at: '2026-10-14T18:15:00.000Z', due_at: '2026-10-15T03:15:00.000Z', closes_at: '2026-10-15T18:15:00.000Z', effective: '2026-10-16' }
+  ];
+  for (const entry of cases) await t.test(entry.timezone, async () => {
+    const { database, local, register, tap } = await isolated(new Date('2026-10-15T01:00:00Z'));
+    try {
+      const user = await register(entry.timezone, `calendar-${entry.timezone}`);
+      const today = await local.request('GET', '/me/checkin/today', {}, user.access_token);
+      assert.equal(today.local_date, entry.local_date);
+      assert.equal(today.starts_at, entry.starts_at);
+      assert.equal(today.due_at, entry.due_at);
+      assert.equal(today.closes_at, entry.closes_at);
+      assert.equal(today.deadline_at, new Date(new Date(entry.due_at).getTime() + 240 * 60000).toISOString());
+      assert.equal(today.timezone, entry.timezone);
+      assert.equal((await local.request('GET', '/me', {}, user.access_token)).timezone, entry.timezone);
+      assert.equal((await tap(user)).status, 'completed');
+      const scheduled = await local.request('PUT', '/me/checkin-schedule', { minute: 600, grace: 120 }, user.access_token);
+      assert.equal(scheduled.effective_date, entry.effective);
+    } finally { await database.close(); }
+  });
+});
+
+test('DST transition days use PostgreSQL wall-clock conversion', async t => {
+  await t.test('spring forward produces a 23-hour day', async () => {
+    const { database, local, register } = await isolated(new Date('2026-03-08T12:00:00Z'));
+    try {
+      const user = await register('America/New_York', 'dst-spring');
+      const today = await local.request('GET', '/me/checkin/today', {}, user.access_token);
+      assert.equal(today.local_date, '2026-03-08');
+      assert.equal(today.starts_at, '2026-03-08T05:00:00.000Z');
+      assert.equal(today.due_at, '2026-03-08T13:00:00.000Z');
+      assert.equal(today.closes_at, '2026-03-09T04:00:00.000Z');
+    } finally { await database.close(); }
+  });
+  await t.test('fall back produces a 25-hour day', async () => {
+    const { database, local, register } = await isolated(new Date('2026-11-01T12:00:00Z'));
+    try {
+      const user = await register('America/New_York', 'dst-fall');
+      const today = await local.request('GET', '/me/checkin/today', {}, user.access_token);
+      assert.equal(today.local_date, '2026-11-01');
+      assert.equal(today.starts_at, '2026-11-01T04:00:00.000Z');
+      assert.equal(today.due_at, '2026-11-01T14:00:00.000Z');
+      assert.equal(today.closes_at, '2026-11-02T05:00:00.000Z');
+    } finally { await database.close(); }
+  });
+  await t.test('nonexistent local schedule time resolves to the shifted instant', async () => {
+    const { database, local, register, tap, setClock } = await isolated(new Date('2026-03-07T12:00:00Z'));
+    try {
+      const user = await register('America/New_York', 'dst-gap');
+      const scheduled = await local.request('PUT', '/me/checkin-schedule', { minute: 150, grace: 60 }, user.access_token);
+      assert.equal(scheduled.effective_date, '2026-03-08');
+      setClock(new Date('2026-03-08T12:00:00Z'));
+      const session = await local.request('POST', '/auth/refresh', { refresh_token: user.refresh_token });
+      const today = await local.request('GET', '/me/checkin/today', {}, session.access_token);
+      assert.equal(today.due_at, '2026-03-08T07:30:00.000Z');
+      assert.equal(today.deadline_at, '2026-03-08T08:30:00.000Z');
+      assert.equal((await local.request('GET', '/me/checkin/today', {}, session.access_token)).id, today.id);
+      const first = await tap(session);
+      const second = await tap(session);
+      assert.equal(second.checkin_id, first.checkin_id);
+      assert.equal(second.already_completed, true);
+      const counts = await database.transaction(tx => tx.query('SELECT (SELECT count(*) FROM occurrences WHERE user_id=$1) AS occurrences,(SELECT count(*) FROM checkins WHERE actor_id=$1) AS checkins', [user.user_id]));
+      assert.equal(Number(counts.rows[0].occurrences), 1);
+      assert.equal(Number(counts.rows[0].checkins), 1);
+    } finally { await database.close(); }
+  });
+  await t.test('repeated local schedule time chooses the standard-time occurrence', async () => {
+    const { database, local, register, tap, setClock } = await isolated(new Date('2026-10-31T12:00:00Z'));
+    try {
+      const user = await register('America/New_York', 'dst-repeat');
+      const scheduled = await local.request('PUT', '/me/checkin-schedule', { minute: 90, grace: 60 }, user.access_token);
+      assert.equal(scheduled.effective_date, '2026-11-01');
+      setClock(new Date('2026-11-01T12:00:00Z'));
+      const session = await local.request('POST', '/auth/refresh', { refresh_token: user.refresh_token });
+      const today = await local.request('GET', '/me/checkin/today', {}, session.access_token);
+      assert.equal(today.due_at, '2026-11-01T06:30:00.000Z');
+      assert.equal(today.deadline_at, '2026-11-01T07:30:00.000Z');
+      assert.equal((await local.request('GET', '/me/checkin/today', {}, session.access_token)).id, today.id);
+      const first = await tap(session);
+      const second = await tap(session);
+      assert.equal(second.checkin_id, first.checkin_id);
+      assert.equal(second.already_completed, true);
+      const counts = await database.transaction(tx => tx.query('SELECT (SELECT count(*) FROM occurrences WHERE user_id=$1) AS occurrences,(SELECT count(*) FROM checkins WHERE actor_id=$1) AS checkins', [user.user_id]));
+      assert.equal(Number(counts.rows[0].occurrences), 1);
+      assert.equal(Number(counts.rows[0].checkins), 1);
+    } finally { await database.close(); }
+  });
+});
+
+test('refresh response replays only for the original request id', async () => {
+  const user = await account();
+  const key = randomUUID();
+  const rotated = await service.request('POST', '/auth/refresh', { refresh_token: user.refresh_token }, '', key);
+  assert.ok(await service.request('GET', '/me', {}, rotated.access_token));
+  const [first, second] = await Promise.all([
+    service.request('POST', '/auth/refresh', { refresh_token: user.refresh_token }, '', key),
+    service.request('POST', '/auth/refresh', { refresh_token: user.refresh_token }, '', key)
+  ]);
+  assert.deepEqual(first, rotated);
+  assert.deepEqual(second, rotated);
+  const stored = await db.transaction(tx => tx.query('SELECT refresh_response_encrypted FROM sessions WHERE user_id=$1 AND refresh_response_encrypted IS NOT NULL', [user.user_id]));
+  assert.equal(stored.rows.length, 1);
+  assert.equal(stored.rows[0].refresh_response_encrypted.includes(rotated.access_token), false);
+  assert.equal(stored.rows[0].refresh_response_encrypted.includes(rotated.refresh_token), false);
+  assert.equal(stored.rows[0].refresh_response_encrypted.includes(user.refresh_token), false);
+  await rejects(service.request('POST', '/auth/refresh', { refresh_token: user.refresh_token }, '', randomUUID()), 'session_reused');
+  await rejects(service.request('GET', '/me', {}, rotated.access_token), 'unauthorized');
+});
+
+test('replay window expiry, logout and tick cleanup retire the stored refresh copy', async () => {
+  const expired = await account();
+  const expiredKey = randomUUID();
+  const rotated = await service.request('POST', '/auth/refresh', { refresh_token: expired.refresh_token }, '', expiredKey);
+  clock = new Date(clock.getTime() + 61000);
+  await rejects(service.request('POST', '/auth/refresh', { refresh_token: expired.refresh_token }, '', expiredKey), 'session_reused');
+  await rejects(service.request('GET', '/me', {}, rotated.access_token), 'unauthorized');
+
+  const logout = await account();
+  const logoutKey = randomUUID();
+  const logged = await service.request('POST', '/auth/refresh', { refresh_token: logout.refresh_token }, '', logoutKey);
+  await service.request('POST', '/auth/logout', {}, logged.access_token);
+  await rejects(service.request('POST', '/auth/refresh', { refresh_token: logout.refresh_token }, '', logoutKey), 'session_reused');
+
+  const cleaned = await account();
+  const cleanKey = randomUUID();
+  await service.request('POST', '/auth/refresh', { refresh_token: cleaned.refresh_token }, '', cleanKey);
+  clock = new Date(clock.getTime() + 61000);
+  await service.tick();
+  const rows = await db.transaction(tx => tx.query('SELECT refresh_request_hash,refresh_response_encrypted,refresh_replay_until FROM sessions WHERE user_id=$1', [cleaned.user_id]));
+  assert.ok(rows.rows.length > 0);
+  for (const row of rows.rows) {
+    assert.equal(row.refresh_request_hash, null);
+    assert.equal(row.refresh_response_encrypted, null);
+    assert.equal(row.refresh_replay_until, null);
+  }
+});

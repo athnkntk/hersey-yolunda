@@ -1,24 +1,30 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Herşey Yolunda — Davet</title>
+<meta name="referrer" content="no-referrer">
+<title>Herşey Yolunda — Invitation</title>
 <style>
   :root { --green:#176B45; --ink:#17211B; --bg:#FAFAF7; }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: var(--bg); color: var(--ink); }
   main { max-width: 560px; margin: 0 auto; padding: 32px 24px 48px; }
-  .brand { display: flex; align-items: center; gap: 12px; color: var(--green); font-weight: 700; font-size: 1.25rem; }
+  .brand { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: var(--green); font-weight: 700; font-size: 1.25rem; }
   .brand svg { flex: none; }
-  h1 { font-size: 2rem; line-height: 1.25; margin: 28px 0 8px; }
-  p { font-size: 1.15rem; line-height: 1.55; }
+  .brand .langs { margin-left: auto; display: flex; flex-wrap: wrap; gap: 6px; }
+  .lang-btn { border: 1px solid var(--green); background: #fff; color: var(--green); border-radius: 8px; padding: 6px 12px; font-size: 0.95rem; cursor: pointer; }
+  .lang-btn[aria-pressed="true"] { background: var(--green); color: #fff; }
+  h1 { font-size: 2rem; line-height: 1.25; margin: 28px 0 8px; overflow-wrap: break-word; }
+  p { font-size: 1.15rem; line-height: 1.55; overflow-wrap: break-word; }
   .card { background: #fff; border-radius: 24px; padding: 24px; margin-top: 24px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-  .btn { display: block; width: 100%; min-height: 64px; border: 0; border-radius: 20px; background: var(--green); color: #fff; font-size: 1.25rem; font-weight: 600; cursor: pointer; margin-top: 16px; text-align: center; text-decoration: none; line-height: 64px; }
+  .btn { display: block; width: 100%; border: 0; border-radius: 20px; background: var(--green); color: #fff; font-size: 1.25rem; font-weight: 600; cursor: pointer; margin-top: 16px; text-align: center; text-decoration: none; padding: 18px 16px; line-height: 1.3; }
   .btn[disabled] { background: #9aa79f; cursor: not-allowed; }
   .muted { color: #5b6b60; font-size: 1rem; }
   .warn { margin-top: 24px; padding: 16px; border-radius: 16px; background: #FFF7E6; color: #6b4e12; font-size: 1rem; }
+  .status { margin-top: 16px; padding: 12px 16px; border-radius: 16px; background: #EEF4F0; color: #34503f; font-size: 1rem; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -26,30 +32,122 @@
   <div class="brand">
     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 21C7 16.5 4 13.3 4 9.6 4 6.5 6.4 4 9.3 4c1.5 0 2.2.7 2.7 1.4C12.5 4.7 13.2 4 14.7 4 17.6 4 20 6.5 20 9.6c0 3.7-3 6.9-8 11.4z" fill="#176B45"/></svg>
     Herşey Yolunda
+    <span class="langs">
+      <button type="button" class="lang-btn" lang="tr" aria-label="Türkçe" aria-pressed="false">Türkçe</button>
+      <button type="button" class="lang-btn" lang="en" aria-label="English" aria-pressed="true">English</button>
+    </span>
   </div>
-  <h1>Bir yakınınız sizi ailesine davet ediyor.</h1>
-  <p>Herşey Yolunda, yaşlı ya da yalnız yaşayan bir yakınınızın tek dokunuşla “Ben iyiyim” demesini sağlar. Konum paylaşılmaz.</p>
+  <h1 data-i18n="title">An invitation from someone close to you.</h1>
+  <p data-i18n="intro">Herşey Yolunda lets a family member say “I'm OK” with one daily tap. No location sharing.</p>
   <div class="card">
-    <p><strong>Uygulama yüklüyse:</strong></p>
-    <button class="btn" id="openApp" disabled>Uygulamada Aç</button>
-    <p><strong>Yüklü değilse:</strong></p>
-    <a class="btn" id="storeLink" href="#" hidden>App Store’dan İndir</a>
-    <p class="muted" id="storeNote" hidden>App Store bağlantısı henüz yayınlanmadı. Uygulama yayına girdikten sonra bu davet bağlantısını yeniden açın.</p>
-    <p class="muted">Uygulamayı yükledikten sonra bu daveti yeniden açabilir veya uygulama içinde <strong>“Davet kodum var”</strong> bölümüne size iletilen kodu girebilirsiniz.</p>
+    <p><strong data-i18n="installed">Already have the app?</strong></p>
+    <button class="btn" id="openApp" disabled data-i18n="open">Open in app</button>
+    <p class="status" id="inviteStatus" hidden></p>
+    <p><strong data-i18n="notInstalled">Need the app?</strong></p>
+    <a class="btn" id="storeLink" href="https://apps.apple.com/app/id6812729799" data-i18n="store">Download on the App Store</a>
+    <p class="muted" data-i18n="afterInstall">After installing, open this invitation again or enter the code you received in “I have an invitation code”.</p>
+    <p class="muted" data-i18n="usage">Invitations are single-use, expire after 48 hours and are checked in the app when you open them.</p>
   </div>
-  <div class="warn">Bu uygulama acil yardım veya tıbbi müdahale hizmeti değildir.</div>
+  <div class="warn" data-i18n="warn">This app is not an emergency or medical response service.</div>
 </main>
 <script>
-  var APP_STORE_URL = "https://apps.apple.com/tr/app/id6812729799";
-  var token = new URLSearchParams(location.search).get("token") || "";
+(function () {
+  "use strict";
+  var APP_STORE_URL = "https://apps.apple.com/app/id6812729799";
+  var KEY = "hy-lang";
+  var T = {
+    en: {
+      docTitle: "Herşey Yolunda — Invitation",
+      title: "An invitation from someone close to you.",
+      intro: "Herşey Yolunda lets a family member say “I'm OK” with one daily tap. No location sharing.",
+      installed: "Already have the app?",
+      open: "Open in app",
+      notInstalled: "Need the app?",
+      store: "Download on the App Store",
+      afterInstall: "After installing, open this invitation again or enter the code you received in “I have an invitation code”.",
+      usage: "Invitations are single-use, expire after 48 hours and are checked in the app when you open them.",
+      warn: "This app is not an emergency or medical response service.",
+      invalid: "This invitation link is incomplete or invalid. Ask the sender for a new link or a 12-character invitation code."
+    },
+    tr: {
+      docTitle: "Herşey Yolunda — Davet",
+      title: "Bir yakınınız sizi ailesine davet ediyor.",
+      intro: "Herşey Yolunda, bir aile üyesinin günlük tek dokunuşla “İyiyim” demesini sağlar. Konum paylaşılmaz.",
+      installed: "Uygulama yüklüyse:",
+      open: "Uygulamada Aç",
+      notInstalled: "Uygulama yüklü değilse:",
+      store: "App Store’dan İndir",
+      afterInstall: "Uygulamayı yükledikten sonra bu daveti yeniden açabilir veya uygulama içinde “Davet kodum var” bölümüne size iletilen kodu girebilirsiniz.",
+      usage: "Davetler tek kullanımlıktır, 48 saat sonra geçerlilikleri biter ve açıldıklarında uygulama içinde kontrol edilir.",
+      warn: "Bu uygulama acil yardım veya tıbbi müdahale hizmeti değildir.",
+      invalid: "Bu davet bağlantısı eksik veya geçersiz. Gönderenden yeni bir bağlantı ya da 12 karakterli davet kodu isteyin."
+    }
+  };
+
+  function detect() {
+    var q;
+    try { q = new URLSearchParams(location.search).get("lang"); } catch (e) { q = null; }
+    if (q === "tr" || q === "en") return q;
+    try {
+      var saved = localStorage.getItem(KEY);
+      if (saved === "tr" || saved === "en") return saved;
+    } catch (e) {}
+    var langs = navigator.languages || [navigator.language || ""];
+    for (var i = 0; i < langs.length; i++) {
+      var base = String(langs[i]).toLowerCase().split("-")[0];
+      if (base === "tr" || base === "en") return base;
+    }
+    return "en";
+  }
+
+  var lang = detect();
+  var d = T[lang];
   var openApp = document.getElementById("openApp");
-  openApp.disabled = token.length !== 43;
+  var statusEl = document.getElementById("inviteStatus");
+
+  var tokens = new URLSearchParams(location.search).getAll("token");
+  var token = tokens.length === 1 && /^[A-Za-z0-9_-]{43}$/.test(tokens[0]) ? tokens[0] : "";
+
+  function showTokenState() {
+    openApp.disabled = !token;
+    statusEl.hidden = Boolean(token);
+    statusEl.textContent = token ? "" : d.invalid;
+  }
+
+  function apply() {
+    document.documentElement.lang = lang;
+    document.title = d.docTitle;
+    var nodes = document.querySelectorAll("[data-i18n]");
+    for (var i = 0; i < nodes.length; i++) {
+      var key = nodes[i].getAttribute("data-i18n");
+      if (d[key] !== undefined) nodes[i].textContent = d[key];
+    }
+    var buttons = document.querySelectorAll(".lang-btn");
+    for (var j = 0; j < buttons.length; j++) {
+      buttons[j].setAttribute("aria-pressed", buttons[j].getAttribute("lang") === lang ? "true" : "false");
+    }
+    showTokenState();
+  }
+
   openApp.addEventListener("click", function () {
-    location.href = "herseyyolunda://invite?token=" + encodeURIComponent(token);
+    if (token) location.href = "herseyyolunda://invite?token=" + encodeURIComponent(token);
   });
-  var link = document.getElementById("storeLink"), note = document.getElementById("storeNote");
-  if (APP_STORE_URL) { link.href = APP_STORE_URL; link.hidden = false; }
-  else { note.hidden = false; }
+  document.getElementById("storeLink").href = APP_STORE_URL;
+
+  var buttons = document.querySelectorAll(".lang-btn");
+  for (var i = 0; i < buttons.length; i++) {
+    (function (btn) {
+      btn.addEventListener("click", function () {
+        lang = btn.getAttribute("lang") || "en";
+        d = T[lang];
+        try { localStorage.setItem(KEY, lang); } catch (e) {}
+        apply();
+      });
+    })(buttons[i]);
+  }
+
+  apply();
+})();
 </script>
 </body>
 </html>

@@ -16,6 +16,12 @@ const invitationCredential = z.object({
 }).strict().refine(value => Boolean(value.token) !== Boolean(value.code), 'Tek bir davet kodu veya bağlantısı kullanın.');
 const uuid = z.string().uuid();
 const labels = z.enum(['Oğlum', 'Kızım', 'Eşim', 'Kardeşim', 'Torunum', 'Yakınım', 'Diğer']);
+const validTimeZone = (value: string): boolean => {
+  if (value !== 'UTC' && value !== 'GMT' && !value.includes('/')) return false;
+  try { new Intl.DateTimeFormat('en', { timeZone: value }).format(new Date(0)); return true; }
+  catch { return false; }
+};
+const timezoneInput = z.string().min(1).max(100).refine(validTimeZone);
 
 export interface Options {
   mode: 'development' | 'test' | 'production';
@@ -45,12 +51,19 @@ export class Service {
     return Buffer.concat([cipher.update(bytes.subarray(28)), cipher.final()]).toString('utf8');
   }
   private lookup(text: string) { return createHmac('sha256', this.options.lookupKey).update(text).digest('hex'); }
-  private day() {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(this.now());
+  private day(timezone: string) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(this.now());
+    const part = (type: string) => parts.find(value => value.type === type)!.value;
+    return `${part('year')}-${part('month')}-${part('day')}`;
   }
   private nextDay(day: string) { return new Date(new Date(`${day}T12:00:00Z`).getTime() + 86400000).toISOString().slice(0, 10); }
-  private at(day: string, minute: number) {
-    return new Date(new Date(`${day}T00:00:00+03:00`).getTime() + minute * 60000).toISOString();
+  private async at(db: SQL, day: string, minute: number, timezone: string) {
+    const row = await this.one(db,
+      "SELECT (($1::date + ($2::integer * interval '1 minute')) AT TIME ZONE $3) AS instant",
+      [day, minute, timezone]);
+    return iso(row.instant);
   }
   private async one(db: SQL, query: string, values: any[] = []) { return (await db.query(query, values)).rows[0]; }
   private async audit(db: SQL, user: string, action: string) {
@@ -77,22 +90,27 @@ export class Service {
       ?? { minute: user.schedule_minute, grace: user.grace_minutes, effective_date: day };
   }
   private async occurrence(db: SQL, user: any) {
-    const day = this.day();
+    const day = this.day(user.timezone);
     let row = await this.one(db, 'SELECT * FROM occurrences WHERE user_id=$1 AND local_date=$2', [user.id, day]);
     if (!row) {
       const schedule = await this.schedule(db, user, day);
-      row = await this.one(db, 'INSERT INTO occurrences(id,user_id,local_date,due_at,deadline_at,closes_at,state) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-        [id(), user.id, day, this.at(day, schedule.minute), this.at(day, schedule.minute + schedule.grace), this.at(this.nextDay(day), 0), user.enabled ? 'pending' : 'cancelled']);
+      const startsAt = await this.at(db, day, 0, user.timezone);
+      const dueAt = await this.at(db, day, schedule.minute, user.timezone);
+      const closesAt = await this.at(db, this.nextDay(day), 0, user.timezone);
+      // Grace is elapsed time, including DST changes; it must end within this occurrence.
+      const deadlineAt = new Date(Math.min(new Date(dueAt).getTime() + schedule.grace * 60000, new Date(closesAt).getTime() - 1)).toISOString();
+      row = await this.one(db, 'INSERT INTO occurrences(id,user_id,local_date,due_at,deadline_at,closes_at,state,timezone,starts_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
+        [id(), user.id, day, dueAt, deadlineAt, closesAt, user.enabled ? 'pending' : 'cancelled', user.timezone, startsAt]);
     }
     return row;
   }
   private async status(db: SQL, user: any) {
     const row = await this.occurrence(db, user);
-    const tomorrow = this.nextDay(this.day());
+    const tomorrow = this.nextDay(this.day(user.timezone));
     const next = await this.schedule(db, user, tomorrow);
     const count = await this.one(db, 'SELECT count(*) AS count FROM relationships WHERE subject_id=$1 AND active', [user.id]);
     return { ...row, due_at: iso(row.due_at), deadline_at: iso(row.deadline_at), closes_at: iso(row.closes_at), completed_at: row.completed_at ? iso(row.completed_at) : null,
-      next_due_at: this.at(tomorrow, next.minute), trusted_contacts: Number(count.count), server_time: this.now().toISOString(), reminders_enabled: user.enabled && new Date(user.activated_at ?? user.created_at) <= new Date(row.due_at) };
+      starts_at: iso(row.starts_at), timezone: row.timezone, next_due_at: await this.at(db, tomorrow, next.minute, user.timezone), next_schedule_minute: next.minute, next_grace_minutes: next.grace, trusted_contacts: Number(count.count), server_time: this.now().toISOString(), reminders_enabled: user.enabled && new Date(user.activated_at ?? user.created_at) <= new Date(row.due_at) };
   }
   private async authorize(db: SQL, actor: string, subject: string) {
     if (actor === subject) return null;
@@ -140,9 +158,11 @@ export class Service {
       if (path === '/health') return { status: 'ok', mode: this.options.mode, push_configured: this.options.pushConfigured ?? false, sms_configured: false };
       if (path.startsWith('/auth/otp/')) fail(410, 'auth_method_removed', 'Telefonla giriş kaldırıldı. Uygulamayı güncelleyip adınızla yeni cihaz hesabı oluşturun. Mevcut oturumunuz varsa kullanmaya devam edebilirsiniz.');
       if (method === 'POST' && path === '/auth/device') {
-        const input = z.object({ name: z.string().trim().min(1).max(60), enabled: z.boolean(), device_name: z.string().trim().min(1).max(80), registration_secret: z.string().regex(/^[A-Za-z0-9_-]{43}$/) }).strict().parse(body);
+        const input = z.object({ name: z.string().trim().min(1).max(60), enabled: z.boolean(), device_name: z.string().trim().min(1).max(80), registration_secret: z.string().regex(/^[A-Za-z0-9_-]{43}$/), timezone: timezoneInput.optional() }).strict().parse(body);
         const secretHash = hash(input.registration_secret);
-        const fingerprint = hash(JSON.stringify([input.name, input.enabled, input.device_name]));
+        const fingerprint = hash(JSON.stringify(input.timezone === undefined
+          ? [input.name, input.enabled, input.device_name]
+          : [input.name, input.enabled, input.device_name, input.timezone]));
         const previous = await this.one(db, 'SELECT * FROM account_registrations WHERE secret_hash=$1', [secretHash]);
         if (previous) {
           if (new Date(previous.expires_at) <= this.now()) fail(409, 'registration_expired', 'Hesap oluşturma tekrar süresi doldu. Adınız veya hesap ID’si ile eski hesaba giriş yapılamaz.');
@@ -156,7 +176,7 @@ export class Service {
         await this.limit(db, `registration:${this.lookup(ip)}`, 10, 3600);
         await this.limit(db, 'registration-global', 1000, 86400);
         const userId = id(), family = id();
-        await db.query('INSERT INTO users(id,name,enabled,created_at,activated_at) VALUES($1,$2,$3,$4,$4)', [userId, input.name, input.enabled, this.now()]);
+        await db.query('INSERT INTO users(id,name,enabled,created_at,activated_at,timezone) VALUES($1,$2,$3,$4,$4,$5)', [userId, input.name, input.enabled, this.now(), input.timezone ?? 'Europe/Istanbul']);
         await db.query('INSERT INTO preferences(user_id) VALUES($1)', [userId]);
         await db.query('INSERT INTO account_registrations VALUES($1,$2,$3,$4,$5)', [secretHash, userId, fingerprint, family, new Date(this.now().getTime() + 10 * 60000)]);
         await this.audit(db, userId, 'device_account_created');
@@ -164,16 +184,27 @@ export class Service {
       }
       if (method === 'POST' && path === '/auth/refresh') {
         const input = z.object({ refresh_token: z.string().min(20).max(200) }).parse(body);
+        if (key) uuid.parse(key);
         const session = await this.one(db, 'SELECT * FROM sessions WHERE refresh_hash=$1', [hash(input.refresh_token)]);
-        if (!session) fail(401, 'session_expired', 'Yeniden giriş yapın.');
+        if (!session || new Date(session.refresh_expires) <= this.now()) fail(401, 'session_expired', 'Yeniden giriş yapın.');
         if (session.revoked) {
+          if (key && session.refresh_request_hash === hash(key) && session.refresh_response_encrypted
+              && new Date(session.refresh_replay_until) > this.now()) {
+            const response = JSON.parse(this.decrypt(session.refresh_response_encrypted));
+            const active = await this.one(db,
+              'SELECT id FROM sessions WHERE refresh_hash=$1 AND family_id=$2 AND NOT revoked AND refresh_expires>$3',
+              [hash(response.refresh_token), session.family_id, this.now()]);
+            if (active) return response;
+          }
           await db.query('UPDATE sessions SET revoked=true WHERE family_id=$1', [session.family_id]);
           await db.query("UPDATE devices SET token_encrypted=NULL,permission='denied' WHERE session_family_id=$1", [session.family_id]);
           return { internal_error: { status: 401, code: 'session_reused', message: 'Güvenlik nedeniyle yeniden giriş yapın.' } };
         }
-        if (new Date(session.refresh_expires) <= this.now()) fail(401, 'session_expired', 'Yeniden giriş yapın.');
-        await db.query('UPDATE sessions SET revoked=true WHERE id=$1', [session.id]);
-        return this.issue(db, session.user_id, session.device_name, session.family_id);
+        const response = await this.issue(db, session.user_id, session.device_name, session.family_id);
+        await db.query('UPDATE sessions SET revoked=true,refresh_request_hash=$2,refresh_response_encrypted=$3,refresh_replay_until=$4 WHERE id=$1',
+          [session.id, key ? hash(key) : null, key ? this.encrypt(JSON.stringify(response)) : null,
+            key ? new Date(this.now().getTime() + 60000) : null]);
+        return response;
       }
       const session = await this.one(db, 'SELECT * FROM sessions WHERE access_hash=$1 AND NOT revoked AND access_expires>$2', [hash(token), this.now()]);
       if (!session) fail(401, 'unauthorized', 'Lütfen yeniden giriş yapın.');
@@ -190,8 +221,8 @@ export class Service {
         const enabled = input.enabled ?? user.enabled;
         await db.query('UPDATE users SET name=$1,enabled=$3,activated_at=$4 WHERE id=$2', [input.name, user.id, enabled, enabled && !user.enabled ? this.now() : user.activated_at]);
         if (enabled !== user.enabled) {
-          await db.query("UPDATE occurrences SET state=$3 WHERE user_id=$1 AND local_date=$2 AND state<>'completed'", [user.id, this.day(), enabled ? 'pending' : 'cancelled']);
-          if (!enabled) await db.query("UPDATE notifications SET status='suppressed' WHERE occurrence_id IN (SELECT id FROM occurrences WHERE user_id=$1 AND local_date=$2) AND status IN ('queued','retryable_failed')", [user.id, this.day()]);
+          await db.query("UPDATE occurrences SET state=$3 WHERE user_id=$1 AND local_date=$2 AND state<>'completed'", [user.id, this.day(user.timezone), enabled ? 'pending' : 'cancelled']);
+          if (!enabled) await db.query("UPDATE notifications SET status='suppressed' WHERE occurrence_id IN (SELECT id FROM occurrences WHERE user_id=$1 AND local_date=$2) AND status IN ('queued','retryable_failed')", [user.id, this.day(user.timezone)]);
           await this.audit(db, user.id, enabled ? 'program_enabled' : 'program_disabled');
         }
         return this.profile({ ...user, ...input, enabled });
@@ -210,7 +241,7 @@ export class Service {
         const row = await this.one(db, 'SELECT * FROM occurrences WHERE id=$1 AND user_id=$2', [input.occurrence_id, user.id]);
         if (!row) fail(404, 'not_found', 'Günlük kontrol bulunamadı.');
         const actionAge = this.now().getTime() - new Date(input.client_action_at).getTime();
-        if (row.local_date !== this.day() || new Date(row.closes_at) <= this.now()) fail(409, 'stale_day', 'Bu kontrolün günü geçti. Bugünkü ekranı yenileyin.');
+        if (row.local_date !== this.day(user.timezone) || new Date(row.starts_at) > this.now() || new Date(row.closes_at) <= this.now()) fail(409, 'stale_day', 'Bu kontrolün günü geçti. Bugünkü ekranı yenileyin.');
         if (actionAge > 300000 || actionAge < -60000) fail(409, 'stale_action', 'Lütfen yeniden dokunarak haber verin.');
         if (row.state === 'cancelled') fail(409, 'paused', 'Bugünkü kontrol devre dışı. Önce yeniden etkinleştirin.');
         let checkin = await this.one(db, 'SELECT * FROM checkins WHERE occurrence_id=$1', [row.id]);
@@ -241,13 +272,13 @@ export class Service {
         return this.status(db, user);
       }
       if (path === '/me/checkin-schedule' && method === 'GET') {
-        const current = await this.schedule(db, user, this.day());
-        const next = await this.schedule(db, user, this.nextDay(this.day()));
+        const current = await this.schedule(db, user, this.day(user.timezone));
+        const next = await this.schedule(db, user, this.nextDay(this.day(user.timezone)));
         return { current, next, timezone: user.timezone };
       }
       if (path === '/me/checkin-schedule' && method === 'PUT') {
         const input = z.object({ minute: z.number().int().min(0).max(1439), grace: z.number().int().min(30).max(720) }).refine(v => v.minute + v.grace < 1440, 'Bekleme süresi aynı güne sığmalı.').parse(body);
-        const day = this.nextDay(this.day());
+        const day = this.nextDay(this.day(user.timezone));
         await db.query('INSERT INTO schedules VALUES($1,$2,$3,$4,$5) ON CONFLICT(user_id,effective_date) DO UPDATE SET minute=$3,grace=$4', [id(), user.id, input.minute, input.grace, day]);
         await this.audit(db, user.id, 'schedule_updated');
         return { ...input, effective_date: day, timezone: user.timezone };
@@ -340,10 +371,10 @@ export class Service {
         return input;
       }
       if (path === '/me/devices' && method === 'POST') {
-        const input = z.object({ id: uuid, token: z.string().regex(/^[a-fA-F0-9]{32,512}$/).optional(), permission: z.enum(['authorized', 'denied', 'not_determined']) }).parse(body);
+        const input = z.object({ id: uuid, token: z.string().regex(/^[a-fA-F0-9]{32,512}$/).optional(), permission: z.enum(['authorized', 'denied', 'not_determined']), locale: z.enum(['tr','en']).optional() }).parse(body);
         const device = await this.one(db, 'SELECT user_id FROM devices WHERE id=$1', [input.id]);
         if (device && device.user_id !== user.id) fail(403, 'forbidden', 'Cihaz kaydı kullanılamıyor.');
-        await db.query('INSERT INTO devices(id,user_id,token_encrypted,permission,updated_at,session_family_id) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(id) DO UPDATE SET token_encrypted=COALESCE($3,devices.token_encrypted),permission=$4,updated_at=$5,session_family_id=$6', [input.id, user.id, input.token ? this.encrypt(input.token) : null, input.permission, this.now(), session.family_id]);
+        await db.query("INSERT INTO devices(id,user_id,token_encrypted,permission,updated_at,session_family_id,locale) VALUES($1,$2,$3,$4,$5,$6,COALESCE($7,'tr')) ON CONFLICT(id) DO UPDATE SET token_encrypted=COALESCE($3,devices.token_encrypted),permission=$4,updated_at=$5,session_family_id=$6,locale=COALESCE($7,devices.locale)", [input.id, user.id, input.token ? this.encrypt(input.token) : null, input.permission, this.now(), session.family_id, input.locale ?? null]);
         return { ok: true };
       }
       if (path === '/me/sessions' && method === 'GET') return { items: (await db.query('SELECT id,device_name,created_at,id=$2 AS current FROM sessions WHERE user_id=$1 AND NOT revoked AND refresh_expires>$3', [user.id, session.id, this.now()])).rows };
@@ -409,6 +440,7 @@ export class Service {
       await db.query('DELETE FROM audit_logs WHERE created_at<$1', [new Date(this.now().getTime() - 180 * 86400000)]);
       await db.query('DELETE FROM invitations WHERE expires_at<$1', [new Date(this.now().getTime() - 30 * 86400000)]);
       await db.query('DELETE FROM sessions WHERE refresh_expires<$1', [new Date(this.now().getTime() - 30 * 86400000)]);
+      await db.query('UPDATE sessions SET refresh_response_encrypted=NULL,refresh_request_hash=NULL,refresh_replay_until=NULL WHERE refresh_replay_until<=$1', [this.now()]);
     });
   }
 }

@@ -91,3 +91,22 @@ test('invalid invitation guesses consume the rate limit even when lookup fails',
   for (let attempt = 0; attempt < 20; attempt++) await rejects(service.request('POST', '/invitations/preview', { code: 'AAAA-BBBB-CCCC' }, viewer.access_token, '', 'guess-network'), 'invalid_invitation');
   await rejects(service.request('POST', '/invitations/preview', { code: 'AAAA-BBBB-CCCC' }, viewer.access_token, '', 'guess-network'), 'rate_limited');
 });
+test('omitted registration timezone defaults to Europe/Istanbul', async () => {
+  const user = await service.request('POST', '/auth/device', input('Varsayılan'), '', '', 'tz-default');
+  assert.equal((await service.request('GET', '/me', {}, user.access_token)).timezone, 'Europe/Istanbul');
+});
+test('chosen timezone persists across same-secret registration retry', async () => {
+  const request = { ...input('Zaman'), timezone: 'America/New_York' };
+  const first = await service.request('POST', '/auth/device', request, '', '', 'tz-retry');
+  const repeated = await service.request('POST', '/auth/device', request, '', '', 'tz-retry');
+  assert.equal(repeated.user_id, first.user_id);
+  assert.equal((await service.request('GET', '/me', {}, repeated.access_token)).timezone, 'America/New_York');
+});
+test('changing timezone with the same registration secret conflicts', async () => {
+  const request = { ...input('Çakışma'), timezone: 'Asia/Tokyo' };
+  await service.request('POST', '/auth/device', request, '', '', 'tz-conflict');
+  await rejects(service.request('POST', '/auth/device', { ...request, timezone: 'Europe/Istanbul' }, '', '', 'tz-conflict'), 'registration_conflict');
+});
+test('invalid timezone names are rejected', async () => {
+  await assert.rejects(service.request('POST', '/auth/device', { ...input('Mars'), timezone: 'Mars/Olympus' }, '', '', 'tz-invalid'));
+});

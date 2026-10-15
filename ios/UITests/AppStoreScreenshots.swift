@@ -19,13 +19,78 @@ final class AppStoreScreenshots: XCTestCase {
         ProcessInfo.processInfo.environment["HY_SEED_KEEP"] == "1"
     }
 
-    private func seedAccounts() async throws -> (fatma: String, mehmet: String) {
+    /// Store captures are opt-in: they seed fixture accounts and must never run
+    /// in the normal CI/core suite. Enable with HY_CAPTURE_STORE_SCREENSHOTS=1
+    /// (or the TEST_RUNNER_-prefixed equivalent passed through to the runner).
+    private var captureEnabled: Bool {
         let env = ProcessInfo.processInfo.environment
-        if let fatma = env["HY_SEED_FATMA_AT"], let mehmet = env["HY_SEED_MEHMET_AT"],
-           !fatma.isEmpty, !mehmet.isEmpty {
-            return (fatma, mehmet)
+        return env["HY_CAPTURE_STORE_SCREENSHOTS"] == "1"
+            || env["TEST_RUNNER_HY_CAPTURE_STORE_SCREENSHOTS"] == "1"
+    }
+
+    /// Screenshot language: HY_SCREENSHOT_LOCALE=tr|en, tr default.
+    private var captureLocale: String {
+        let env = ProcessInfo.processInfo.environment
+        let raw = env["TEST_RUNNER_HY_SCREENSHOT_LOCALE"] ?? env["HY_SCREENSHOT_LOCALE"] ?? "tr"
+        return raw == "en" ? "en" : "tr"
+    }
+
+    /// Verified catalog translations for the UI labels the capture flow touches.
+    private struct CaptureText {
+        let tabToday, tabFamily, tabSettings: String
+        let haveCode, reviewInvite, accept, acceptedPrefix: String
+        let inviteRelative, createInvitation, approveSharing, viewersHeader: String
+        let schedule, saveSchedule, checkedIn, familySeesOK: String
+        let dataRights, deleteAccount, deleteConfirm: String
+        let subjectName, seedA, seedB: String
+        let greetingPrefix: String
+
+        static let tr = CaptureText(
+            tabToday: "Bugün", tabFamily: "Ailem", tabSettings: "Ayarlar",
+            haveCode: "Davet kodum var", reviewInvite: "Daveti görüntüle",
+            accept: "Kabul ediyorum", acceptedPrefix: "Kabulünüz alındı",
+            inviteRelative: "Yakınımı davet et", createInvitation: "Davet oluştur",
+            approveSharing: "Paylaşımı onayla", viewersHeader: "Benim haberimi alanlar",
+            schedule: "Kontrol saati", saveSchedule: "Programı kaydet",
+            checkedIn: "Bugün haber verdiniz.",
+            familySeesOK: "Aileniz uygulamada iyi olduğunuzu görebilir.",
+            dataRights: "Verilerim ve hesap silme", deleteAccount: "Hesabımı sil",
+            deleteConfirm: "Hesabımı kalıcı olarak sil",
+            subjectName: "Ayşe", seedA: "Fatma", seedB: "Mehmet",
+            greetingPrefix: "Merhaba,")
+
+        static let en = CaptureText(
+            tabToday: "Today", tabFamily: "Family", tabSettings: "Settings",
+            haveCode: "I have an invitation code", reviewInvite: "Review invitation",
+            accept: "I accept", acceptedPrefix: "Your acceptance was received",
+            inviteRelative: "Invite a relative", createInvitation: "Create invitation",
+            approveSharing: "Approve sharing", viewersHeader: "People who get my updates",
+            schedule: "Check-in schedule", saveSchedule: "Save schedule",
+            checkedIn: "You checked in today.",
+            familySeesOK: "Your family can see in the app that you are OK.",
+            dataRights: "My data and account deletion", deleteAccount: "Delete my account",
+            deleteConfirm: "Permanently delete my account",
+            subjectName: "Sarah", seedA: "Margaret", seedB: "David",
+            greetingPrefix: "Hello,")
+    }
+
+    private var text: CaptureText { captureLocale == "en" ? .en : .tr }
+
+    private func seedAccounts() async throws -> (first: String, second: String) {
+        let env = ProcessInfo.processInfo.environment
+        if let first = env["HY_SEED_FATMA_AT"], let second = env["HY_SEED_MEHMET_AT"],
+           !first.isEmpty, !second.isEmpty {
+            return (first, second)
         }
-        return (try await createSeedAccount("Fatma"), try await createSeedAccount("Mehmet"))
+        return (try await createSeedAccount(text.seedA), try await createSeedAccount(text.seedB))
+    }
+
+    private func assertGreeting(in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+        let greeting = app.staticTexts.matching(
+            NSPredicate(format: "label BEGINSWITH %@", text.greetingPrefix)).firstMatch
+        XCTAssertTrue(greeting.waitForExistence(timeout: 10),
+                      "expected greeting beginning with \(text.greetingPrefix)",
+                      file: file, line: line)
     }
 
     private func save(_ name: String, in app: XCUIApplication) {
@@ -33,6 +98,12 @@ final class AppStoreScreenshots: XCTestCase {
         shot.name = name
         shot.lifetime = .keepAlways
         add(shot)
+    }
+
+    override func setUpWithError() throws {
+        try XCTSkipUnless(captureEnabled,
+                          "Store screenshot capture is opt-in (HY_CAPTURE_STORE_SCREENSHOTS=1)")
+        try super.setUpWithError()
     }
 
     @MainActor
@@ -166,7 +237,16 @@ final class AppStoreScreenshots: XCTestCase {
                     if button.exists { button.tap(); acted = true }
                 }
             }
-            for name in ["Bilgilendirme", "İşlem tamamlanamadı"] {
+            // SKStoreReviewController prompts appear inside the app's own
+            // hierarchy and use the *system* language; the shared review
+            // counter can fire them mid-flow. Dismiss the defer button.
+            for title in ["Sonra", "Daha Sonra", "Not Now", "Later", "Maybe Later"] {
+                for button in [app.buttons[title], app.alerts.buttons[title], app.sheets.buttons[title]] {
+                    if button.exists { button.tap(); acted = true }
+                }
+            }
+            for name in ["Bilgilendirme", "İşlem tamamlanamadı",
+                         "Information", "The request could not be completed"] {
                 for title in ["Tamam", "OK"] {
                     let button = app.alerts[name].buttons[title]
                     if button.exists { button.tap(); acted = true }
@@ -235,26 +315,26 @@ final class AppStoreScreenshots: XCTestCase {
     }
 
     @MainActor
-    private func acceptInvitation(code: String, resultPrefix: String, in app: XCUIApplication) throws {
-        tapLabeled("Davet kodum var", in: app)
+    private func acceptInvitation(code: String, in app: XCUIApplication) throws {
+        tapLabeled(text.haveCode, in: app)
         let input = app.textFields["invitationInput"]
         XCTAssertTrue(input.waitForExistence(timeout: 15))
         input.tap()
         input.typeText(code)
         dismissKeyboard(in: app)
-        let preview = app.buttons["Daveti görüntüle"]
+        let preview = app.buttons[text.reviewInvite]
         XCTAssertTrue(preview.waitForExistence(timeout: 15))
         if !preview.isHittable { app.collectionViews.firstMatch.swipeUp() }
         preview.tap()
-        let accept = app.buttons["Kabul ediyorum"]
+        let accept = app.buttons[text.accept]
         XCTAssertTrue(accept.waitForExistence(timeout: 30))
         if !accept.isHittable { app.collectionViews.firstMatch.swipeUp() }
         accept.tap()
         let confirmed = app.staticTexts
-            .matching(NSPredicate(format: "label BEGINSWITH %@", resultPrefix))
+            .matching(NSPredicate(format: "label BEGINSWITH %@", text.acceptedPrefix))
             .firstMatch
         XCTAssertTrue(confirmed.waitForExistence(timeout: 30))
-        let back = app.navigationBars.buttons["Ailem"]
+        let back = app.navigationBars.buttons[text.tabFamily]
         if back.exists { back.tap() }
         else if app.navigationBars.buttons.firstMatch.exists { app.navigationBars.buttons.firstMatch.tap() }
     }
@@ -294,18 +374,21 @@ final class AppStoreScreenshots: XCTestCase {
     /// Settings → data rights → delete the signed-in account; back at welcome.
     @MainActor
     private func deleteAccountThroughUI(in app: XCUIApplication) {
-        tapTab("Ayarlar", in: app)
-        // The Ayarlar tab may still sit on a pushed detail screen — pop to root.
-        let navBack = app.navigationBars.buttons["Ayarlar"]
+        // A review prompt may be covering the tab bar after the check-in.
+        settlePrompts(in: app, seconds: 4)
+        tapTab(text.tabSettings, in: app)
+        // The Settings tab may still sit on a pushed detail screen — pop to root.
+        let navBack = app.navigationBars.buttons[text.tabSettings]
         if navBack.waitForExistence(timeout: 5) { navBack.tap() }
-        tapLabeled("Verilerim ve hesap silme", in: app)
-        if !app.buttons["Hesabımı sil"].exists {
+        settlePrompts(in: app, seconds: 4)
+        tapLabeled(text.dataRights, in: app)
+        if !app.buttons[text.deleteAccount].exists {
             app.collectionViews.firstMatch.swipeUp()
         }
-        tapLabeled("Hesabımı sil", in: app)
-        var confirmDelete = app.buttons["Hesabımı kalıcı olarak sil"]
+        tapLabeled(text.deleteAccount, in: app)
+        var confirmDelete = app.buttons[text.deleteConfirm]
         if !confirmDelete.waitForExistence(timeout: 10) {
-            confirmDelete = app.sheets.buttons["Hesabımı kalıcı olarak sil"]
+            confirmDelete = app.sheets.buttons[text.deleteConfirm]
             XCTAssertTrue(confirmDelete.waitForExistence(timeout: 10))
         }
         confirmDelete.tap()
@@ -319,15 +402,17 @@ final class AppStoreScreenshots: XCTestCase {
         // Seed family data over HTTP before the app launches (reused across
         // runs via HY_SEED_*_AT env vars when available).
         let seeds = try await seedAccounts()
-        let fatmaToken = seeds.fatma
-        let mehmetToken = seeds.mehmet
-        seedTokens = [fatmaToken, mehmetToken]
-        let fatmaCode = try await createInvitationCode(label: "Kızım", token: fatmaToken)
-        let mehmetCode = try await createInvitationCode(label: "Kardeşim", token: mehmetToken)
-        try await checkInToday(token: fatmaToken)
+        let seedAToken = seeds.first
+        let seedBToken = seeds.second
+        seedTokens = [seedAToken, seedBToken]
+        // Invitation labels are a fixed Turkish backend enum in both locales.
+        let seedACode = try await createInvitationCode(label: "Kızım", token: seedAToken)
+        let seedBCode = try await createInvitationCode(label: "Kardeşim", token: seedBToken)
+        try await checkInToday(token: seedAToken)
 
         let app = XCUIApplication()
-        app.launchArguments = ["--uitest-clean", "--uitest-premium"]
+        app.launchArguments = ["--uitest-clean", "--uitest-premium",
+                               "--uitest-language", captureLocale]
         app.launch()
 
         let name = app.textFields["nameField"]
@@ -335,9 +420,17 @@ final class AppStoreScreenshots: XCTestCase {
         save("01-giris", in: app)
 
         name.tap()
-        name.typeText("Ayşe")
+        name.typeText(text.subjectName)
         dismissKeyboard(in: app)
         app.buttons["createAccount"].tap()
+
+        // The in-app notification preprompt appears after account creation;
+        // accept it so the system dialog (handled by the interruption monitor)
+        // can grant permission as before.
+        let prepromptAllow = app.buttons["notificationAllow"]
+        if prepromptAllow.waitForExistence(timeout: 15) {
+            prepromptAllow.tap()
+        }
 
         // An alert stalls existence queries — dismiss prompts before waiting.
         settlePrompts(in: app, seconds: 10)
@@ -345,35 +438,37 @@ final class AppStoreScreenshots: XCTestCase {
         XCTAssertTrue(checkin.waitForExistence(timeout: 60))
         settlePrompts(in: app, seconds: 4)
         XCTAssertTrue(checkin.exists)
+        assertGreeting(in: app)
         save("02-ana-ekran", in: app)
 
-        tapTab("Ailem", in: app)
-        try acceptInvitation(code: fatmaCode, resultPrefix: "Kabulünüz alındı", in: app)
-        try acceptInvitation(code: mehmetCode, resultPrefix: "Kabulünüz alındı", in: app)
+        tapTab(text.tabFamily, in: app)
+        try acceptInvitation(code: seedACode, in: app)
+        try acceptInvitation(code: seedBCode, in: app)
 
-        try await approvePendingInvitations(token: fatmaToken)
-        try await approvePendingInvitations(token: mehmetToken)
+        try await approvePendingInvitations(token: seedAToken)
+        try await approvePendingInvitations(token: seedBToken)
 
-        let fatmaRow = app.staticTexts["Fatma"]
-        let mehmetRow = app.staticTexts["Mehmet"]
-        if !fatmaRow.waitForExistence(timeout: 15) {
+        let seedARow = app.staticTexts[text.seedA]
+        let seedBRow = app.staticTexts[text.seedB]
+        if !seedARow.waitForExistence(timeout: 15) {
             pullToRefresh(in: app)
-            _ = fatmaRow.waitForExistence(timeout: 15)
+            _ = seedARow.waitForExistence(timeout: 15)
         }
-        if !fatmaRow.exists {
-            tapTab("Bugün", in: app)
-            tapTab("Ailem", in: app)
+        if !seedARow.exists {
+            tapTab(text.tabToday, in: app)
+            tapTab(text.tabFamily, in: app)
             pullToRefresh(in: app)
-            _ = fatmaRow.waitForExistence(timeout: 15)
+            _ = seedARow.waitForExistence(timeout: 15)
         }
-        XCTAssertTrue(fatmaRow.exists)
-        XCTAssertTrue(mehmetRow.waitForExistence(timeout: 15))
+        XCTAssertTrue(seedARow.exists)
+        XCTAssertTrue(seedBRow.waitForExistence(timeout: 15))
 
-        // Ayşe creates her own share_mine invitation — Fatma accepts it over
-        // HTTP, Ayşe approves in UI — so she gains a trusted contact.
+        // The subject creates her own share_mine invitation — the first seed
+        // accepts it over HTTP, the subject approves in UI — so she gains a
+        // trusted contact.
         for _ in 0 ..< 3 { app.swipeDown() }
-        tapLabeled("Yakınımı davet et", in: app)
-        let create = app.buttons["Davet oluştur"]
+        tapLabeled(text.inviteRelative, in: app)
+        let create = app.buttons[text.createInvitation]
         XCTAssertTrue(create.waitForExistence(timeout: 15))
         create.tap()
         XCTAssertTrue(app.images["invitationQR"].waitForExistence(timeout: 30))
@@ -381,44 +476,44 @@ final class AppStoreScreenshots: XCTestCase {
             app.collectionViews.firstMatch.swipeUp()
         }
         save("05-davet", in: app)
-        let ayseCode = invitationCodeValue(in: app)
-        XCTAssertFalse(ayseCode.isEmpty, "could not read the invitation code")
+        let subjectCode = invitationCodeValue(in: app)
+        XCTAssertFalse(subjectCode.isEmpty, "could not read the invitation code")
 
-        let preview = try await api("POST", "/invitations/preview", token: fatmaToken, body: ["code": ayseCode])
-        let ayseInviteId = try XCTUnwrap(preview["id"] as? String)
-        _ = try await api("POST", "/invitations/\(ayseInviteId)/accept", token: fatmaToken, body: ["code": ayseCode])
+        let preview = try await api("POST", "/invitations/preview", token: seedAToken, body: ["code": subjectCode])
+        let subjectInviteId = try XCTUnwrap(preview["id"] as? String)
+        _ = try await api("POST", "/invitations/\(subjectInviteId)/accept", token: seedAToken, body: ["code": subjectCode])
 
-        let back = app.navigationBars.buttons["Ailem"]
+        let back = app.navigationBars.buttons[text.tabFamily]
         if back.exists { back.tap() }
         pullToRefresh(in: app)
-        let approve = app.buttons["Paylaşımı onayla"]
+        let approve = app.buttons[text.approveSharing]
         XCTAssertTrue(approve.waitForExistence(timeout: 30))
         approve.tap()
         for _ in 0 ..< 30 where approve.exists { Thread.sleep(forTimeInterval: 0.5) }
         XCTAssertFalse(approve.exists, "invitation approval did not complete")
 
-        // "Benim haberimi alanlar" must now list Fatma (subject = Ayşe).
+        // The viewers section must now list the first seed (subject = user).
         pullToRefresh(in: app)
-        let viewersHeader = app.staticTexts["Benim haberimi alanlar"]
-        let fatmaCells = app.staticTexts.matching(NSPredicate(format: "label == %@", "Fatma"))
-        var fatmaCount = 0
+        let viewersHeader = app.staticTexts[text.viewersHeader]
+        let seedACells = app.staticTexts.matching(NSPredicate(format: "label == %@", text.seedA))
+        var seedACount = 0
         for _ in 0 ..< 6 {
-            if viewersHeader.isHittable { fatmaCount = fatmaCells.count }
-            if viewersHeader.isHittable, fatmaCount >= 2 { break }
+            if viewersHeader.isHittable { seedACount = seedACells.count }
+            if viewersHeader.isHittable, seedACount >= 2 { break }
             app.collectionViews.firstMatch.swipeUp()
             Thread.sleep(forTimeInterval: 0.5)
         }
         XCTAssertTrue(viewersHeader.exists)
-        XCTAssertGreaterThanOrEqual(fatmaCount, 2,
-                                    "Fatma should appear in Yakınlarım and Benim haberimi alanlar")
+        XCTAssertGreaterThanOrEqual(seedACount, 2,
+                                    "seed A should appear in both family lists")
         save("04-ailem", in: app)
 
-        tapTab("Ayarlar", in: app)
-        tapLabeled("Kontrol saati", in: app)
-        XCTAssertTrue(app.buttons["Programı kaydet"].waitForExistence(timeout: 15))
+        tapTab(text.tabSettings, in: app)
+        tapLabeled(text.schedule, in: app)
+        XCTAssertTrue(app.buttons[text.saveSchedule].waitForExistence(timeout: 15))
         save("06-kontrol-saati", in: app)
 
-        tapTab("Bugün", in: app)
+        tapTab(text.tabToday, in: app)
         // Reload today's card so trustedContacts sees the new link — pull to
         // refresh, and background+foreground to force the scenePhase reload.
         pullToRefresh(in: app)
@@ -428,21 +523,23 @@ final class AppStoreScreenshots: XCTestCase {
         Thread.sleep(forTimeInterval: 6)
         XCTAssertTrue(checkin.waitForExistence(timeout: 15))
         checkin.tap()
-        XCTAssertTrue(app.staticTexts["Bugün haber verdiniz."].waitForExistence(timeout: 30))
-        XCTAssertTrue(app.staticTexts["Aileniz uygulamada iyi olduğunuzu görebilir."].exists)
+        XCTAssertTrue(app.staticTexts[text.checkedIn].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts[text.familySeesOK].exists)
+        assertGreeting(in: app)
         save("03-haber-verildi", in: app)
 
-        // Remove Ayşe's synthetic account through the UI — back to welcome.
+        // Remove the synthetic subject account through the UI — back to welcome.
         deleteAccountThroughUI(in: app)
     }
 
     @MainActor
     func testCapturePaywall() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["--uitest-clean", "--uitest-signed-in"]
+        app.launchArguments = ["--uitest-clean", "--uitest-signed-in",
+                               "--uitest-language", captureLocale]
         app.launch()
 
-        tapTab("Ailem", in: app)
+        tapTab(text.tabFamily, in: app)
         settlePrompts(in: app, seconds: 5)
         let banner = app.buttons["premiumBanner"]
         XCTAssertTrue(banner.waitForExistence(timeout: 10))

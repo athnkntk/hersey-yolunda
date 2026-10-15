@@ -6,11 +6,14 @@ struct SettingsView: View {
     var body: some View {
         List {
             Section {
-                Label(state.profile?.name ?? "Hesabım", systemImage: "person.crop.circle").font(.title2)
+                Label(state.profile?.name ?? L10n.text("Hesabım"), systemImage: "person.crop.circle").font(.title2)
             }
-            Section("Günlük rutin") {
+            Section(L10n.text("Dil")) {
+                LanguagePicker()
+            }
+            Section(L10n.text("Günlük rutin")) {
                 if state.profile?.enabled == false {
-                    Button("Ben de günlük haber vermek istiyorum") {
+                    Button(L10n.text("Ben de günlük haber vermek istiyorum")) {
                         Task {
                             await state.perform {
                                 let _: Profile = try await state.api.request("PATCH", "/me/profile", body: ["name": state.profile?.name ?? "", "enabled": true])
@@ -20,167 +23,251 @@ struct SettingsView: View {
                         }
                     }.frame(minHeight: 56)
                 }
-                NavigationLink("Kontrol saati") { ScheduleView() }
-                NavigationLink("Bildirim tercihleri") { PreferencesView() }
-                NavigationLink("Bildirimlerim") { NotificationsView() }
-                Button("Bildirim iznini ayarla") { Task { await state.notificationPermission() } }.frame(minHeight: 56)
-                NavigationLink("Ana ekrana widget ekle") { WidgetGuideView() }
+                NavigationLink(L10n.text("Kontrol saati")) { ScheduleView() }
+                NavigationLink(L10n.text("Bildirim tercihleri")) { PreferencesView() }
+                NavigationLink(L10n.text("Bildirimlerim")) { NotificationsView() }
+                Button(L10n.text("Bildirim iznini ayarla")) { Task { await state.notificationPermission() } }.frame(minHeight: 56)
+                NavigationLink(L10n.text("Ana ekrana widget ekle")) { WidgetGuideView() }
             }
-            Section("Gizlilik ve hesap") {
-                NavigationLink("Hesabım ve kurtarma") { AccountAccessView() }
-                NavigationLink("Gizlilik ve kullanım sınırları") { PrivacyView() }
-                NavigationLink("Açık oturumlar") { SessionsView() }
-                NavigationLink("Verilerim ve hesap silme") { DataRightsView() }
-                Button("Çıkış yap") { confirmLogout = true }.frame(minHeight: 56)
+            Section(L10n.text("Gizlilik ve hesap")) {
+                NavigationLink(L10n.text("Hesabım ve kurtarma")) { AccountAccessView() }
+                NavigationLink(L10n.text("Gizlilik ve kullanım sınırları")) { PrivacyView() }
+                NavigationLink(L10n.text("Açık oturumlar")) { SessionsView() }
+                NavigationLink(L10n.text("Verilerim ve hesap silme")) { DataRightsView() }
+                Button(L10n.text("Çıkış yap")) { confirmLogout = true }.frame(minHeight: 56)
             }
             Section {
-                Text("Herşey Yolunda · \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")").foregroundStyle(.secondary)
-                if APIClient.isLocal { Text("Yerel geliştirme sürümü. Telefon/SMS gerekmez. Canlı push, Apple ile kurtarma ve hukuki metinler henüz hazır değil.").foregroundStyle(Design.amber) }
+                Text(L10n.format("Herşey Yolunda · %@", Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")).foregroundStyle(.secondary)
+                if APIClient.isLocal { Text(L10n.text("Yerel geliştirme sürümü. Telefon/SMS gerekmez. Canlı push, Apple ile kurtarma ve hukuki metinler henüz hazır değil.")).foregroundStyle(Design.amber) }
             }
-        }.navigationTitle("Ayarlar")
-            .confirmationDialog("Hesabınızdan çıkılsın mı?", isPresented: $confirmLogout, titleVisibility: .visible) {
-                Button("Çıkış yap") { Task { await state.logout() } }
-            } message: { Text("Bu sürümde Apple ile kurtarma yoktur. Çıkış yaparsanız bu hesaba erişiminizi kaybedebilirsiniz; adınız veya hesap ID’niz hesabı geri açmaz. Günlük programınız sunucuda devam eder. Kalıcı olarak ayrılıyorsanız hesap silme seçeneğini kullanın.") }
+        }.navigationTitle(L10n.text("Ayarlar"))
+            .confirmationDialog(Text(L10n.text("Hesabınızdan çıkılsın mı?")), isPresented: $confirmLogout, titleVisibility: .visible) {
+                Button(L10n.text("Çıkış yap")) { Task { await state.logout() } }
+            } message: { Text(L10n.text("Bu sürümde Apple ile kurtarma yoktur. Çıkış yaparsanız bu hesaba erişiminizi kaybedebilirsiniz; adınız veya hesap ID’niz hesabı geri açmaz. Günlük programınız sunucuda devam eder. Kalıcı olarak ayrılıyorsanız hesap silme seçeneğini kullanın.")) }
     }
 }
 
 struct ScheduleView: View {
     @EnvironmentObject var state: AppState
-    @State private var time = Calendar.current.date(from: DateComponents(hour: 9)) ?? Date()
+    @State private var time = Date()
     @State private var grace = 240
-    @State private var loaded = false
+    @State private var loadState: LoadState = .idle
+    @State private var loading = false
+    @State private var timezone = ""
+    private var accountZone: TimeZone {
+        TimeZone(identifier: timezone.isEmpty ? (state.profile?.timezone ?? "") : timezone) ?? .current
+    }
+    private var accountCalendar: Calendar { DateText.calendar(timeZone: accountZone) }
     private var minuteOfDay: Int {
-        let components = Calendar.current.dateComponents([.hour, .minute], from: time)
+        let components = accountCalendar.dateComponents([.hour, .minute], from: time)
         return (components.hour ?? 9) * 60 + (components.minute ?? 0)
     }
+    private var loaded: Bool { loadState == .loaded }
     private var fitsInDay: Bool { Schedule.fitsInDay(minute: minuteOfDay, grace: grace) }
     var body: some View {
         Form {
-            Section("Türkiye saati") {
-                DatePicker("Hatırlatma", selection: $time, displayedComponents: .hourAndMinute)
-                Picker("Bekleme süresi", selection: $grace) {
-                    Text("1 saat").tag(60)
-                    Text("2 saat").tag(120)
-                    Text("4 saat").tag(240)
-                    Text("6 saat").tag(360)
-                }
-                Text("Haberiniz gelmezse bekleme süresi sonunda yakınlarınıza bilgi verilir. Saat ve bekleme süresi aynı güne sığmalıdır.")
-                if !fitsInDay {
-                    Text("Bu saat ve bekleme süresi aynı güne sığmıyor. Daha erken bir saat veya daha kısa bekleme süresi seçin.").foregroundStyle(Design.amber)
+            if !loaded {
+                Section { LoadStateView(state: loadState, empty: "", retry: load) }
+            }
+            Section(L10n.format("Hesap saat dilimi: %@", accountZone.identifier)) {
+                DatePicker(L10n.text("Hatırlatma"), selection: $time, displayedComponents: .hourAndMinute)
+                    .environment(\.timeZone, accountZone)
+                    .disabled(!loaded)
+                Picker(selection: $grace) {
+                    Text(L10n.text("1 saat")).tag(60)
+                    Text(L10n.text("2 saat")).tag(120)
+                    Text(L10n.text("4 saat")).tag(240)
+                    Text(L10n.text("6 saat")).tag(360)
+                } label: { Text(L10n.text("Bekleme süresi")) }
+                .disabled(!loaded)
+                Text(L10n.text("Haberiniz gelmezse bekleme süresi sonunda yakınlarınız bunu uygulamada görebilir. Saat ve bekleme süresi aynı güne sığmalıdır."))
+                if loaded && !fitsInDay {
+                    Text(L10n.text("Bu saat ve bekleme süresi aynı güne sığmıyor. Daha erken bir saat veya daha kısa bekleme süresi seçin.")).foregroundStyle(Design.amber)
                 }
             }
             Section {
-                Button("Programı kaydet") {
+                Button(L10n.text("Programı kaydet")) {
                     Task {
                         await state.perform {
                             let _: EmptyResponse = try await state.api.request("PUT", "/me/checkin-schedule", body: ["minute": minuteOfDay, "grace": grace])
-                            state.message = "Yeni programınız yarından itibaren geçerli. Bugünkü kontrolünüz değişmedi."
+                            state.message = L10n.text("Yeni programınız yarından itibaren geçerli. Bugünkü kontrolünüz değişmedi.")
                             await state.reload()
                         }
                     }
                 }.frame(minHeight: 56).disabled(!loaded || state.loading || !fitsInDay)
-                if !loaded {
-                    Text("Mevcut programınız alınamadı. Kaydetmeden önce yeniden yükleyin.").foregroundStyle(Design.amber)
-                    Button("Yeniden yükle") { Task { await load() } }.frame(minHeight: 56).disabled(state.loading)
+                    .accessibilityIdentifier("scheduleSave")
+                if case .failed = loadState {
+                    Button(L10n.text("Yeniden yükle")) { Task { await load() } }.frame(minHeight: 56).disabled(state.loading)
                 }
-                Text("Değişiklik yarın uygulanır. Telefonunuzun saat dilimi programı otomatik değiştirmez.").foregroundStyle(.secondary)
+                Text(L10n.text("Değişiklik yarın uygulanır. Telefonunuzun saat dilimi programı otomatik değiştirmez.")).foregroundStyle(.secondary)
             }
-        }.navigationTitle("Kontrol saati")
-            .task { await load() }
+        }.navigationTitle(L10n.text("Kontrol saati"))
+            .task(id: state.profile?.id) { if loadState == .idle { await load() } }
     }
     private func load() async {
+        guard !loading else { return }
+        loading = true
+        defer { loading = false }
+        if loadState != .loaded { loadState = .loading }
         do {
             let schedule: Schedule = try await state.api.request("GET", "/me/checkin-schedule")
-            time = Calendar.current.date(from: DateComponents(hour: schedule.next.minute / 60, minute: schedule.next.minute % 60)) ?? Date()
+            timezone = schedule.timezone
+            time = accountCalendar.date(from: DateComponents(hour: schedule.next.minute / 60, minute: schedule.next.minute % 60)) ?? Date()
             grace = schedule.next.grace
-            loaded = true
-        } catch { if !isCancellationError(error) { state.error = error.localizedDescription } }
+            loadState = .loaded
+        } catch {
+            if isCancellationError(error) { return }
+            loadState = .failed(L10n.text("Mevcut programınız alınamadı. Kaydetmeden önce yeniden yükleyin."))
+        }
     }
 }
 
 struct PreferencesView: View {
     @EnvironmentObject var state: AppState
     @State private var preferences = Preferences(success: true, missed: true, analytics: false)
-    @State private var loaded = false
+    @State private var loadState: LoadState = .idle
+    @State private var loading = false
+    private var loaded: Bool { loadState == .loaded }
     var body: some View {
         Form {
-            Section("Yakınlarımdan gelen haberler") {
-                Toggle("İyi olduğunu bildirdiğinde", isOn: $preferences.success)
-                Toggle("Günlük haber gelmediğinde", isOn: $preferences.missed)
-                if !preferences.missed { Text("Kapalıyken kaçırılan check-in bildirimi almazsınız. Durumu uygulamadan kontrol etmeniz gerekir.").foregroundStyle(Design.amber) }
+            if !loaded {
+                Section { LoadStateView(state: loadState, empty: "", retry: load) }
             }
-            Section("İsteğe bağlı analitik") {
-                Toggle("Ürünü geliştirmeye yardımcı ol", isOn: $preferences.analytics)
-                Text("Adınız, telefonunuz veya aile bilgileriniz analitik olayı olarak gönderilmez. Tercihiniz temel hizmeti etkilemez. Bu sürümde üçüncü taraf analitik SDK'sı yoktur.")
+            Section(L10n.text("Yakınlarımdan gelen haberler")) {
+                Toggle(L10n.text("İyi olduğunu bildirdiğinde"), isOn: $preferences.success)
+                    .disabled(!loaded)
+                Toggle(L10n.text("Günlük haber gelmediğinde"), isOn: $preferences.missed)
+                    .disabled(!loaded)
+                if loaded && !preferences.missed { Text(L10n.text("Kapalıyken kaçırılan check-in bildirimi almazsınız. Durumu uygulamadan kontrol etmeniz gerekir.")).foregroundStyle(Design.amber) }
             }
-            Button("Tercihleri kaydet") {
+            Section(L10n.text("İsteğe bağlı analitik")) {
+                Toggle(L10n.text("Ürünü geliştirmeye yardımcı ol"), isOn: $preferences.analytics)
+                    .disabled(!loaded)
+                Text(L10n.text("Adınız, telefonunuz veya aile bilgileriniz analitik olayı olarak gönderilmez. Tercihiniz temel hizmeti etkilemez. Bu sürümde üçüncü taraf analitik SDK'sı yoktur."))
+            }
+            Button(L10n.text("Tercihleri kaydet")) {
                 Task {
                     await state.perform {
                         let _: Preferences = try await state.api.request("PATCH", "/me/notification-preferences", body: ["success": preferences.success, "missed": preferences.missed, "analytics": preferences.analytics])
-                        state.message = "Tercihleriniz kaydedildi."
+                        state.message = L10n.text("Tercihleriniz kaydedildi.")
                     }
                 }
             }.frame(minHeight: 56).disabled(!loaded || state.loading)
-            if !loaded {
-                Text("Mevcut tercihleriniz alınamadı. Kaydetmeden önce yeniden yükleyin.").foregroundStyle(Design.amber)
-                Button("Yeniden yükle") { Task { await load() } }.frame(minHeight: 56).disabled(state.loading)
+            if case .failed = loadState {
+                Button(L10n.text("Yeniden yükle")) { Task { await load() } }.frame(minHeight: 56).disabled(state.loading)
             }
-        }.navigationTitle("Bildirimler")
-            .task { await load() }
+        }.navigationTitle(L10n.text("Bildirimler"))
+            .task(id: state.profile?.id) { if loadState == .idle { await load() } }
     }
     private func load() async {
-        do { preferences = try await state.api.request("GET", "/me/notification-preferences"); loaded = true }
-        catch { if !isCancellationError(error) { state.error = error.localizedDescription } }
+        guard !loading else { return }
+        loading = true
+        defer { loading = false }
+        if loadState != .loaded { loadState = .loading }
+        do {
+            preferences = try await state.api.request("GET", "/me/notification-preferences")
+            loadState = .loaded
+        } catch {
+            if isCancellationError(error) { return }
+            loadState = .failed(L10n.text("Mevcut tercihleriniz alınamadı. Kaydetmeden önce yeniden yükleyin."))
+        }
     }
 }
 
 struct NotificationsView: View {
     @EnvironmentObject var state: AppState
     @State private var items: [Notice] = []
+    @State private var loadState: LoadState = .idle
+    @State private var loadingList = false
+    private var accountZone: TimeZone { TimeZone(identifier: state.profile?.timezone ?? "") ?? .current }
     var body: some View {
         List {
-            if items.isEmpty { Text("Henüz bir bildirim yok.") }
+            if case .failed(let message) = loadState, !items.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(message).font(.callout).foregroundStyle(.secondary)
+                    Button(L10n.text("Yeniden dene")) { Task { await load() } }
+                }
+            }
+            if items.isEmpty {
+                LoadStateView(state: loadState, empty: L10n.text("Henüz bir bildirim yok."), retry: load)
+            }
             ForEach(items) { notice in
                 VStack(alignment: .leading, spacing: 10) {
                     Text(notice.title).font(.headline)
-                    Text(DateText.stamp(notice.createdAt)).foregroundStyle(.secondary)
-                    Text(notice.status == "queued" ? "Uygulama içi kayıt · Push henüz gönderilmedi" : statusText(notice.status)).font(.callout).foregroundStyle(.secondary)
+                    Text(DateText.stamp(notice.createdAt, timeZone: accountZone)).foregroundStyle(.secondary)
+                    Text(NotificationStatusText.message(notice.status)).font(.callout).foregroundStyle(.secondary)
                 }.padding(.vertical, 8)
             }
-        }.navigationTitle("Bildirimlerim")
-            .task {
-                do {
-                    let response: Items<Notice> = try await state.api.request("GET", "/me/notifications")
-                    items = response.items
-                } catch { if !isCancellationError(error) { state.error = error.localizedDescription } }
-            }
+        }.navigationTitle(L10n.text("Bildirimlerim"))
+            .task(id: state.refreshGeneration) { await load() }
+            .refreshable { await load() }
+    }
+    private func load() async {
+        guard !loadingList else { return }
+        loadingList = true
+        defer { loadingList = false }
+        if items.isEmpty { loadState = .loading }
+        do {
+            let response: Items<Notice> = try await state.api.request("GET", "/me/notifications")
+            items = response.items
+            loadState = .loaded
+        } catch {
+            if isCancellationError(error) { return }
+            loadState = .failed(ErrorText.message(for: error))
+        }
     }
 }
 
 struct SessionsView: View {
     @EnvironmentObject var state: AppState
     @State private var items: [SessionInfo] = []
+    @State private var loadState: LoadState = .idle
+    @State private var loadingList = false
+    private var accountZone: TimeZone { TimeZone(identifier: state.profile?.timezone ?? "") ?? .current }
     var body: some View {
-        List(items) { session in
-            VStack(alignment: .leading, spacing: 10) {
-                Text(session.deviceName).font(.headline)
-                Text(session.current ? "Bu oturum" : DateText.stamp(session.createdAt))
-                if !session.current {
-                    Button("Oturumu kapat", role: .destructive) {
-                        Task {
-                            await state.perform {
-                                let _: EmptyResponse = try await state.api.request("DELETE", "/me/sessions/\(session.id)")
-                                items.removeAll { $0.id == session.id }
-                            }
-                        }
-                    }.frame(minHeight: 56)
+        List {
+            if case .failed(let message) = loadState, !items.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(message).font(.callout).foregroundStyle(.secondary)
+                    Button(L10n.text("Yeniden dene")) { Task { await load() } }
                 }
             }
-        }.navigationTitle("Oturumlar")
-            .task {
-                do { let response: Items<SessionInfo> = try await state.api.request("GET", "/me/sessions"); items = response.items }
-                catch { if !isCancellationError(error) { state.error = error.localizedDescription } }
+            if items.isEmpty {
+                LoadStateView(state: loadState, empty: L10n.text("Henüz bir oturum yok."), retry: load)
             }
+            ForEach(items) { session in
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(session.deviceName).font(.headline)
+                    Text(session.current ? L10n.text("Bu oturum") : DateText.stamp(session.createdAt, timeZone: accountZone))
+                    if !session.current {
+                        Button(L10n.text("Oturumu kapat"), role: .destructive) {
+                            Task {
+                                await state.perform {
+                                    let _: EmptyResponse = try await state.api.request("DELETE", "/me/sessions/\(session.id)")
+                                    items.removeAll { $0.id == session.id }
+                                }
+                            }
+                        }.frame(minHeight: 56)
+                    }
+                }
+            }
+        }.navigationTitle(L10n.text("Oturumlar"))
+            .task(id: state.refreshGeneration) { await load() }
+            .refreshable { await load() }
+    }
+    private func load() async {
+        guard !loadingList else { return }
+        loadingList = true
+        defer { loadingList = false }
+        if items.isEmpty { loadState = .loading }
+        do {
+            let response: Items<SessionInfo> = try await state.api.request("GET", "/me/sessions")
+            items = response.items
+            loadState = .loaded
+        } catch {
+            if isCancellationError(error) { return }
+            loadState = .failed(ErrorText.message(for: error))
+        }
     }
 }
 
@@ -190,9 +277,9 @@ struct DataRightsView: View {
     @State private var confirm = false
     var body: some View {
         List {
-            Section("Veri dışa aktarma") {
-                Text("Profiliniz ve kendi check-in kayıtlarınız dışa aktarılır. Başkalarının özel hesap bilgileri dahil edilmez.")
-                Button("Verilerimi hazırla") {
+            Section(L10n.text("Veri dışa aktarma")) {
+                Text(L10n.text("Profiliniz ve kendi check-in kayıtlarınız dışa aktarılır. Başkalarının özel hesap bilgileri dahil edilmez."))
+                Button(L10n.text("Verilerimi hazırla")) {
                     Task {
                         await state.perform {
                             let data: ExportData = try await state.api.request("POST", "/me/exports")
@@ -203,22 +290,22 @@ struct DataRightsView: View {
                         }
                     }
                 }.frame(minHeight: 56)
-                if !exported.isEmpty { ShareLink("Verilerimi paylaş / kaydet", item: exported).frame(minHeight: 56) }
+                if !exported.isEmpty { ShareLink(L10n.text("Verilerimi paylaş / kaydet"), item: exported).frame(minHeight: 56) }
             }
-            Section("Hesap silme") {
-                Text("Hesabınız, aile bağlantılarınız ve kayıtlarınız bu sunucudan silinir. İşlem geri alınamaz. Yerel test sürümünde yedek hizmeti yoktur.")
-                Button("Hesabımı sil", role: .destructive) { confirm = true }.frame(minHeight: 56)
+            Section(L10n.text("Hesap silme")) {
+                Text(L10n.text("Hesabınız, aile bağlantılarınız ve kayıtlarınız bu sunucudan silinir. İşlem geri alınamaz."))
+                Text(L10n.text("Hesabınızı silmek App Store aboneliğinizi iptal etmez. Aboneliğinizi App Store üzerinden ayrıca yönetin."))
+                Link(L10n.text("Aboneliği yönet"), destination: URL(string: "https://apps.apple.com/account/subscriptions")!).frame(minHeight: 56)
+                Button(L10n.text("Hesabımı sil"), role: .destructive) { confirm = true }.frame(minHeight: 56)
             }
-        }.navigationTitle("Verilerim")
-            .confirmationDialog("Hesabınız kalıcı olarak silinsin mi?", isPresented: $confirm, titleVisibility: .visible) {
-                Button("Hesabımı kalıcı olarak sil", role: .destructive) {
+        }.navigationTitle(L10n.text("Verilerim"))
+            .confirmationDialog(Text(L10n.text("Hesabınız kalıcı olarak silinsin mi?")), isPresented: $confirm, titleVisibility: .visible) {
+                Button(L10n.text("Hesabımı kalıcı olarak sil"), role: .destructive) {
                     Task {
                         await state.perform {
-                            let _: EmptyResponse = try await state.api.request("DELETE", "/me", body: ["confirmation": "HESABIMI SİL"])
+                            let _: EmptyResponse = try await state.api.request("DELETE", "/me", body: ["confirmation": "HESABIMI SİL"], expectedUser: state.profile?.id)
                             try await state.api.forgetSession()
-                            state.profile = nil
-                            state.today = nil
-                            state.signedIn = false
+                            state.endSession(expired: false)
                             exported = ""
                         }
                     }
@@ -227,15 +314,7 @@ struct DataRightsView: View {
             .onDisappear { exported = "" }
     }
 }
-func statusText(_ status: String) -> String {
-    switch status {
-    case "provider_accepted": return "Gönderildi"
-    case "suppressed": return "Gizlendi"
-    case "retryable_failed": return "Tekrar deneniyor"
-    case "permanently_failed": return "Gönderilemedi"
-    default: return status
-    }
-}
+func statusText(_ status: String) -> String { NotificationStatusText.message(status) }
 
 struct ExportData: Codable {
     let profile: Profile
@@ -248,17 +327,17 @@ struct ExportConsent: Codable { let purpose: String; let version: String; let gr
 struct WidgetGuideView: View {
     var body: some View {
         List {
-            Section("Bir dokunuş daha yakın") {
-                Label("Ana ekranda boş bir alana basılı tutun.", systemImage: "1.circle")
-                Label("Düzenle → Widget Ekle seçeneğini açın.", systemImage: "2.circle")
-                Label("Herşey Yolunda'yı bulun ve büyük widget'ı seçin.", systemImage: "3.circle")
-                Label("BEN İYİYİM düğmesiyle bilinçli olarak haber verin.", systemImage: "4.circle")
+            Section(L10n.text("Bir dokunuş daha yakın")) {
+                Label(L10n.text("Ana ekranda boş bir alana basılı tutun."), systemImage: "1.circle")
+                Label(L10n.text("Düzenle → Widget Ekle seçeneğini açın."), systemImage: "2.circle")
+                Label(L10n.text("Herşey Yolunda'yı bulun ve büyük widget'ı seçin."), systemImage: "3.circle")
+                Label(L10n.text("BEN İYİYİM düğmesiyle bilinçli olarak haber verin."), systemImage: "4.circle")
             }
             Section {
-                Text("Widget yalnızca sunucu onayından sonra başarılı gösterir. Bağlantı veya oturum sorunu varsa uygulamayı açıp yeniden deneyin.")
-                Text("Telefonu açmak otomatik haber göndermez. Widget'taki tarihi kontrol edin.")
+                Text(L10n.text("Widget yalnızca sunucu onayından sonra başarılı gösterir. Bağlantı veya oturum sorunu varsa uygulamayı açıp yeniden deneyin."))
+                Text(L10n.text("Telefonu açmak otomatik haber göndermez. Widget'taki tarihi kontrol edin."))
             }
-        }.navigationTitle("Widget ekleme")
+        }.navigationTitle(L10n.text("Widget ekleme"))
     }
 }
 
@@ -267,36 +346,41 @@ struct AccountAccessView: View {
     var body: some View {
         List {
             if let profile = state.profile {
-                Section("Hesap kimliğim") {
+                Section(L10n.text("Hesap kimliğim")) {
                     Text(profile.id).font(.callout.monospaced()).textSelection(.enabled)
-                    Text("Bu kimlik şifre veya davet kodu değildir. Başka bir hesap bu kimlikle verilerinize erişemez.")
+                        .accessibilityIdentifier("accountIdentifier")
+                    Text(L10n.text("Bu kimlik şifre veya davet kodu değildir. Başka bir hesap bu kimlikle verilerinize erişemez."))
                 }
             }
-            Section("Bu cihazdaki hesabınız") {
-                Text("Sistem size benzersiz bir hesap kimliği atar. Güvenli oturum anahtarları iPhone’un Keychain alanında tutulur; adınız sadece görünen isimdir.")
-                Text("Aynı adı yazmak eski hesabınıza giriş sağlamaz. Telefon değişimi, cihazın sıfırlanması, oturum kaybı veya çıkıştan sonra hesabınıza erişemeyebilirsiniz. Yeniden kurulumda erişimin korunacağı garanti edilmez.")
+            Section(L10n.text("Bu cihazdaki hesabınız")) {
+                Text(L10n.text("Sistem size benzersiz bir hesap kimliği atar. Güvenli oturum anahtarları iPhone’un Keychain alanında tutulur; adınız sadece görünen isimdir."))
+                Text(L10n.text("Aynı adı yazmak eski hesabınıza giriş sağlamaz. Telefon değişimi, cihazın sıfırlanması, oturum kaybı veya çıkıştan sonra hesabınıza erişemeyebilirsiniz. Yeniden kurulumda erişimin korunacağı garanti edilmez."))
             }
-            Section("Hesabı koruma ve kurtarma") {
-                Text("Apple ile hesabı koruma bu sürümde henüz mevcut değildir. Kurtarma bağlantısı olmadan yeni cihazda yeni hesap oluşturup aile eşleştirmelerini tekrar onaylamanız gerekir.")
-                Text("Bir yakınınız sizin hesabınızı devralamaz veya adınıza ‘iyiyim’ gönderemez. Davet bağlantıları yalnızca paylaşım ilişkisi kurar; hesabınıza giriş sağlamaz.")
+            Section(L10n.text("Hesabı koruma ve kurtarma")) {
+                Text(L10n.text("Apple ile hesabı koruma bu sürümde henüz mevcut değildir. Kurtarma bağlantısı olmadan yeni cihazda yeni hesap oluşturup aile eşleştirmelerini tekrar onaylamanız gerekir."))
+                Text(L10n.text("Bir yakınınız sizin hesabınızı devralamaz veya adınıza ‘iyiyim’ gönderemez. Davet bağlantıları yalnızca paylaşım ilişkisi kurar; hesabınıza giriş sağlamaz."))
             }
-        }.navigationTitle("Hesabım ve kurtarma")
+        }.navigationTitle(L10n.text("Hesabım ve kurtarma"))
     }
 }
 
 struct PrivacyView: View {
+    private var page: URL { URL(string: "https://athnkntk.github.io/hersey-yolunda/privacy.html?lang=\(L10n.language)")! }
+    private var support: URL { URL(string: "https://athnkntk.github.io/hersey-yolunda/?lang=\(L10n.language)")! }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Text("Kontrol sizde.").font(.largeTitle.bold())
-                Text("Yakınınızı takip etmek değil, iyi olduğunu bilmek.").font(.title2)
-                privacy("Toplanan bilgiler", "Ad, sistemin atadığı hesap kimliği, günlük beyan zamanı, izin verdiğiniz ilişkiler, güvenli cihaz oturumu ve gerekli bildirim bilgileri. Yeni hesap için telefon veya SMS istenmez. Konum, sağlık ölçümleri, kamera, mikrofon ve rehber toplanmaz. Eski telefonlu hesapların mevcut kayıtları geçiş sırasında korunur; hesap silme kapsamındadır.")
-                privacy("Paylaşım", "Günlük haberinizi yalnızca açıkça yetkilendirdiğiniz yakınlar görür. Paylaşımı Ailem ekranından istediğiniz zaman durdurabilirsiniz.")
-                privacy("Saklama", "Yerel MVP'de check-in geçmişi 30 günlük temizlik politikasına tabidir. Hesap silme, bu sunucudaki hesabı ve ilişkili kayıtları siler. Üretim saklama ve yedek politikası ayrıca doğrulanacaktır.")
-                privacy("Hizmet sınırları", "Bu uygulama acil yardım veya tıbbi müdahale hizmeti değildir. Kullanıcı beyanı, sağlık durumunun doğrulandığı anlamına gelmez. Push bildirimleri gecikebilir veya görülmeyebilir. Acil durumda 112'yi arayın.")
-                privacy("Yerel test ve hukuki durum", "Bu sürüm gerçek kişisel verilerle üretim kullanımına hazır değildir. Veri sorumlusu iletişimi, işleme dayanakları, yurt dışı aktarım mekanizması ve nihai aydınlatma metni henüz onaylanmadı. Bu ekran nihai KVKK aydınlatması yerine geçmez.")
+                Text(L10n.text("Kontrol sizde.")).font(.largeTitle.bold())
+                Text(L10n.text("Yakınınızı takip etmek değil, iyi olduğunu bilmek.")).font(.title2)
+                privacy(L10n.text("Toplanan bilgiler"), L10n.text("Ad, sistemin atadığı hesap kimliği, günlük beyan zamanı, izin verdiğiniz ilişkiler, güvenli cihaz oturumu ve gerekli bildirim bilgileri. Yeni hesap için telefon veya SMS istenmez. Konum, sağlık ölçümleri, kamera, mikrofon ve rehber toplanmaz."))
+                privacy(L10n.text("Paylaşım"), L10n.text("Günlük haberinizi yalnızca açıkça yetkilendirdiğiniz yakınlar görür. Paylaşımı Ailem ekranından istediğiniz zaman durdurabilirsiniz."))
+                privacy(L10n.text("Saklama"), L10n.text("Check-in geçmişi 30 günlük temizlik politikasına tabidir. Hesap silme, bu sunucudaki hesabı ve ilişkili kayıtları siler."))
+                privacy(L10n.text("Hesap ve oturum"), L10n.text("Adınız bir kimlik bilgisi değildir; yeni bir cihazda aynı adı yazmak eski hesabınızı açmaz. Bu sürümde hesap kurtarma yoktur; oturum kaybında yeni hesap ve aile eşleştirmesi gerekir."))
+                privacy(L10n.text("Hizmet sınırları"), L10n.text("Bu uygulama acil yardım veya tıbbi müdahale hizmeti değildir. Kullanıcı beyanı, sağlık durumunun doğrulandığı anlamına gelmez. Push bildirimleri gecikebilir veya görülmeyebilir. Acil durumda bulunduğunuz ülkedeki acil yardım numarasını arayın."))
+                Link(L10n.text("Tam gizlilik metni"), destination: page)
+                Link(L10n.text("Destek"), destination: support)
             }.padding(24)
-        }.background(Design.background).navigationTitle("Gizlilik")
+        }.background(Design.background).navigationTitle(L10n.text("Gizlilik"))
     }
     private func privacy(_ title: String, _ text: String) -> some View {
         VStack(alignment: .leading, spacing: 10) { Text(title).font(.title3.bold()); Text(text).font(.body).lineSpacing(5) }

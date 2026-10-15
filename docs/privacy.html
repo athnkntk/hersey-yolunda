@@ -1,45 +1,57 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Herşey Yolunda — Gizlilik Bildirimi</title>
+<meta name="referrer" content="no-referrer">
+<title>Herşey Yolunda — Privacy Notice</title>
 <style>
   body { font-family: -apple-system, system-ui, sans-serif; max-width: 680px; margin: 40px auto; padding: 0 20px; color: #1c2b24; line-height: 1.6; }
   h1 { color: #166043; } h2 { font-size: 1.15rem; margin-top: 2em; color: #166043; }
+  a { color: #166043; }
+  .langs { text-align: right; margin-bottom: 1em; }
+  .lang-btn { border: 1px solid #166043; background: #fff; color: #166043; border-radius: 8px; padding: 6px 12px; font-size: 0.95rem; cursor: pointer; margin-left: 6px; }
+  .lang-btn[aria-pressed="true"] { background: #166043; color: #fff; }
 </style>
 </head>
-<body>
-<h1>Herşey Yolunda — Gizlilik Bildirimi</h1>
-<p><em>Son güncelleme: 16 Eylül 2026</em></p>
+<body data-page="privacy">
+<div class="langs">
+  <button type="button" class="lang-btn" lang="tr" aria-label="Türkçe" aria-pressed="false">Türkçe</button>
+  <button type="button" class="lang-btn" lang="en" aria-label="English" aria-pressed="true">English</button>
+</div>
+<h1>Herşey Yolunda — <span data-i18n="pageTitle">Privacy Notice</span></h1>
+<p><em data-i18n="updated">Last updated: 15 October 2026</em></p>
 
-<p>Herşey Yolunda, günlük "iyi olduğumu bildir" alışkanlığı için tasarlanmış bir aile uygulamasıdır. Bu bildirim, hangi verilerin neden toplandığını açıklar.</p>
+<p data-i18n="intro">Herşey Yolunda is a family app built around a daily “I'm OK” habit. This notice explains which data is processed and why.</p>
 
-<h2>Toplanan veriler</h2>
+<h2 data-i18n="dataTitle">Data we process</h2>
 <ul>
-  <li><strong>Adınız / görünen ad:</strong> Hesap oluşturmak için yalnızca bir ad yazarsınız; telefon numarası, e-posta veya şifre istenmez.</li>
-  <li><strong>Günlük bildirim kayıtları:</strong> Dokunduğunuz gün ve saat, seçtiğiniz yakınlarınızla paylaşılır.</li>
-  <li><strong>Davet bağlantıları:</strong> Aile eşleştirmesi için oluşturduğunuz davet kodları.</li>
+  <li><strong data-i18n="data1a">Account:</strong><span data-i18n="data1b"> display name and account ID; your account time zone and preferences.</span></li>
+  <li><strong data-i18n="data2a">Check-in records:</strong><span data-i18n="data2b"> the day and time you check in, its source and your history.</span></li>
+  <li><strong data-i18n="data3a">Connections:</strong><span data-i18n="data3b"> the family connections you approve and the invitations you create.</span></li>
+  <li><strong data-i18n="data4a">Notification details:</strong><span data-i18n="data4b"> device notification token, notification permission and language preference.</span></li>
+  <li><strong data-i18n="data5a">Security:</strong><span data-i18n="data5b"> session and consent records; network identifiers are stored as hashes for abuse limits.</span></li>
+  <li data-i18n="data6">Hosting providers may process technical request information to operate the service.</li>
 </ul>
 
-<h2>Toplanmayan veriler</h2>
-<ul>
-  <li>Konum, sağlık ölçümü, kamera, mikrofon veya rehber erişimi yoktur.</li>
-  <li>Reklam, analitik izleme ve üçüncü taraf SDK izlemesi yoktur.</li>
-  <li>Uygulama pasif olarak hiçbir veri göndermez; bildirim yalnızca siz dokunduğunuzda oluşur.</li>
-</ul>
+<h2 data-i18n="purposeTitle">Purpose</h2>
+<p data-i18n="purposeBody">Data is used for the daily check-in, sharing with people you authorize, personal reminders and notification delivery when available, account and session security, and abuse prevention. There is no advertising or tracking SDK and no access to location, health sensors, camera, microphone or contacts. A check-in is created only by your intentional action; the app's normal network requests can occur at other times.</p>
 
-<h2>Veri işleyenler</h2>
-<ul>
-  <li><strong>Render</strong> (ABD): API sunucusu barındırma.</li>
-  <li><strong>Supabase</strong> (AWS): Veritabanı barındırma.</li>
-</ul>
-<p>Bildirim içerikleri sunucuda şifreli saklanır; hesabınızı sildiğinizde kayıtlarınız silinir.</p>
+<h2 data-i18n="sharingTitle">Sharing and providers</h2>
+<p data-i18n="sharingBody">People you authorize see the daily updates and history you choose to share. An invitation recipient sees the display name the inviter chose. You can revoke sharing at any time. Service providers: Render (API hosting), Supabase (Postgres database) and Apple (App Store payments and push delivery when configured).</p>
 
-<h2>Haklarınız</h2>
-<p>Ayarlar → "Hesabı sil" ile tüm verilerinizi kalıcı olarak silebilirsiniz. Sorularınız için: <a href="mailto:atahankantik@gmail.com">atahankantik@gmail.com</a></p>
+<h2 data-i18n="securityTitle">Security</h2>
+<p data-i18n="securityBody">Connections are made over HTTPS and session credentials are kept in your device's Keychain.</p>
 
-<h2>Sağlayıcı</h2>
-<p>Herşey Yolunda — bağımsız geliştirici uygulaması. Bu bildirim bir hukuk görüşü değildir.</p>
+<h2 data-i18n="retentionTitle">Retention and deletion</h2>
+<p data-i18n="retentionBody">Check-in history is subject to a 30-day cleanup; expired invitation records are cleaned 30 days after expiry; security audit entries are kept 180 days. Providers' operational backups may have a separate retention period. You can export your data or delete your account in Settings → “My data”. Deleting your account removes the account, relationships and records from the active database; it does not cancel your App Store subscription.</p>
+
+<h2 data-i18n="limitsTitle">Limits</h2>
+<p data-i18n="limitsBody">This version has no account recovery. The app is not an emergency or medical response service, and notification delivery is not guaranteed.</p>
+
+<h2 data-i18n="contactTitle">Contact and provider</h2>
+<p><span data-i18n="contactBody">Provider: Atahan Kantik — independent developer. For data requests and questions:</span> <a href="mailto:atahankantik@gmail.com">atahankantik@gmail.com</a></p>
+<p><a href="index.html" data-lang-link="index.html" data-i18n="supportLink">Support</a></p>
+<script src="site.js"></script>
 </body>
 </html>

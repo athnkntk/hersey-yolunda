@@ -3,7 +3,11 @@ import Security
 import WidgetKit
 import Darwin
 
-struct StoredSession: Codable { let auth: AuthSession; let expiresAt: Date }
+struct StoredSession: Codable {
+    let auth: AuthSession
+    let expiresAt: Date
+    var refreshRequestID: String? = nil
+}
 
 enum SharedStorage {
     static let group = "group.com.herseyyolunda.shared"
@@ -22,11 +26,10 @@ enum SharedStorage {
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess, let data = result as? Data else { throw LocalError(message: "Güvenli oturum açılamadı. Uygulamayı açıp yeniden deneyin.") }
+        guard status == errSecSuccess, let data = result as? Data else { throw LocalError(message: L10n.text("Güvenli oturum açılamadı. Uygulamayı açıp yeniden deneyin.")) }
         return try JSONDecoder().decode(StoredSession.self, from: data)
     }
-    static func save(_ session: AuthSession) throws {
-        let value = StoredSession(auth: session, expiresAt: Date().addingTimeInterval(TimeInterval(session.expiresIn)))
+    static func saveStored(_ value: StoredSession) throws {
         let data = try JSONEncoder().encode(value)
         let update = [kSecValueData as String: data]
         let status = SecItemUpdate(keychainQuery as CFDictionary, update as CFDictionary)
@@ -34,8 +37,11 @@ enum SharedStorage {
             var query = keychainQuery
             query[kSecValueData as String] = data
             query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            guard SecItemAdd(query as CFDictionary, nil) == errSecSuccess else { throw LocalError(message: "Oturum güvenli biçimde kaydedilemedi.") }
-        } else if status != errSecSuccess { throw LocalError(message: "Oturum yenilenemedi.") }
+            guard SecItemAdd(query as CFDictionary, nil) == errSecSuccess else { throw LocalError(message: L10n.text("Oturum güvenli biçimde kaydedilemedi.")) }
+        } else if status != errSecSuccess { throw LocalError(message: L10n.text("Oturum yenilenemedi.")) }
+    }
+    static func save(_ session: AuthSession) throws {
+        try saveStored(StoredSession(auth: session, expiresAt: Date().addingTimeInterval(TimeInterval(session.expiresIn))))
     }
     static var registrationQuery: [String: Any] {
         var query = keychainQuery
@@ -48,7 +54,7 @@ enum SharedStorage {
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess, let data = result as? Data else { throw LocalError(message: "Bekleyen hesap kaydı güvenli alandan okunamadı.") }
+        guard status == errSecSuccess, let data = result as? Data else { throw LocalError(message: L10n.text("Bekleyen hesap kaydı güvenli alandan okunamadı.")) }
         return try JSONDecoder().decode(PendingRegistration.self, from: data)
     }
     static func saveRegistration(_ registration: PendingRegistration) throws {
@@ -58,8 +64,8 @@ enum SharedStorage {
             var query = registrationQuery
             query[kSecValueData as String] = data
             query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            guard SecItemAdd(query as CFDictionary, nil) == errSecSuccess else { throw LocalError(message: "Hesap anahtarı güvenli biçimde kaydedilemedi.") }
-        } else if status != errSecSuccess { throw LocalError(message: "Bekleyen hesap kaydı güncellenemedi.") }
+            guard SecItemAdd(query as CFDictionary, nil) == errSecSuccess else { throw LocalError(message: L10n.text("Hesap anahtarı güvenli biçimde kaydedilemedi.")) }
+        } else if status != errSecSuccess { throw LocalError(message: L10n.text("Bekleyen hesap kaydı güncellenemedi.")) }
     }
     static func clearRegistration() { SecItemDelete(registrationQuery as CFDictionary) }
     static func clear() {
@@ -68,12 +74,22 @@ enum SharedStorage {
         defaults.removeObject(forKey: "snapshot")
         defaults.removeObject(forKey: "pending")
         defaults.removeObject(forKey: "profile")
+        defaults.removeObject(forKey: "widgetFailure")
+        ServerClock.clear()
         LocalNotifications.cancelReminders()
         WidgetCenter.shared.reloadAllTimelines()
     }
     static func snapshot() -> WidgetSnapshot? {
         guard let data = defaults.data(forKey: "snapshot") else { return nil }
         return try? JSONDecoder().decode(WidgetSnapshot.self, from: data)
+    }
+    static func saveWidgetFailure(_ failure: WidgetFailure?) {
+        if let failure { defaults.set(try? JSONEncoder().encode(failure), forKey: "widgetFailure") }
+        else { defaults.removeObject(forKey: "widgetFailure") }
+    }
+    static func widgetFailure() -> WidgetFailure? {
+        guard let data = defaults.data(forKey: "widgetFailure") else { return nil }
+        return try? JSONDecoder().decode(WidgetFailure.self, from: data)
     }
     static func cachedProfile() -> Profile? {
         guard let data = defaults.data(forKey: "profile") else { return nil }
@@ -84,6 +100,10 @@ enum SharedStorage {
         defaults.set(try? JSONEncoder().encode(profile), forKey: "profile")
         guard profile.enabled else {
             defaults.removeObject(forKey: "snapshot")
+            WidgetCenter.shared.reloadAllTimelines()
+            return
+        }
+        guard today.supersedes(snapshot()?.today) else {
             WidgetCenter.shared.reloadAllTimelines()
             return
         }
@@ -128,58 +148,77 @@ actor APIClient {
     }
     private func lock() async throws -> Int32 {
         guard let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SharedStorage.group) else {
-            throw LocalError(message: "Paylaşılan güvenli alan açılamadı. Uygulamayı açın.")
+            throw LocalError(message: L10n.text("Paylaşılan güvenli alan açılamadı. Uygulamayı açın."))
         }
         let descriptor = open(container.appendingPathComponent("session.lock").path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
-        guard descriptor >= 0 else { throw LocalError(message: "Oturum kilidi açılamadı.") }
-        for _ in 0..<100 {
+        guard descriptor >= 0 else { throw LocalError(message: L10n.text("Oturum kilidi açılamadı.")) }
+        for _ in 0..<450 {
             if flock(descriptor, LOCK_EX | LOCK_NB) == 0 { return descriptor }
             do { try await Task.sleep(for: .milliseconds(100)) }
             catch { close(descriptor); throw error }
         }
         close(descriptor)
-        throw LocalError(message: "Başka bir işlem sürüyor. Yeniden deneyin.")
+        throw LocalError(message: L10n.text("Başka bir işlem sürüyor. Yeniden deneyin."))
     }
     private func unlock(_ descriptor: Int32) { flock(descriptor, LOCK_UN); close(descriptor) }
 
-    private func token(expectedUser: String? = nil) async throws -> String {
+    private func credential(expectedUser: String? = nil, replacing rejectedAccess: String? = nil) async throws -> (token: String, userID: String) {
         let descriptor = try await lock()
         defer { unlock(descriptor) }
-        guard let stored = try SharedStorage.session() else { throw LocalError(message: "Önce uygulamadan giriş yapın.") }
-        if let expectedUser, stored.auth.userId != expectedUser { throw LocalError(message: "Aktif hesap değişti. Ekranı yenileyin.") }
-        if stored.expiresAt > Date().addingTimeInterval(60) { return stored.auth.accessToken }
-        let refreshed: AuthSession = try await send("POST", "/auth/refresh", body: ["refresh_token": stored.auth.refreshToken], token: nil)
+        guard let stored = try SharedStorage.session() else {
+            throw BackendError(code: "session_expired", message: "")
+        }
+        if let expectedUser, stored.auth.userId != expectedUser {
+            throw LocalError(message: L10n.text("Aktif hesap değişti. Ekranı yenileyin."))
+        }
+        if stored.expiresAt > Date().addingTimeInterval(60), stored.refreshRequestID == nil,
+           rejectedAccess == nil || stored.auth.accessToken != rejectedAccess {
+            return (stored.auth.accessToken, stored.auth.userId)
+        }
+        var working = stored
+        if working.refreshRequestID == nil {
+            working.refreshRequestID = UUID().uuidString
+            try SharedStorage.saveStored(working)
+        }
+        let refreshed: AuthSession = try await send("POST", "/auth/refresh", body: ["refresh_token": working.auth.refreshToken], token: nil, key: working.refreshRequestID)
+        guard refreshed.userId == stored.auth.userId else {
+            throw LocalError(message: L10n.text("Aktif hesap değişti. Ekranı yenileyin."))
+        }
         try SharedStorage.save(refreshed)
-        return refreshed.accessToken
+        return (refreshed.accessToken, refreshed.userId)
     }
     func createAccount(name: String, enabled: Bool) async throws {
         let descriptor = try await lock()
         defer { unlock(descriptor) }
-        guard try SharedStorage.session() == nil else { throw LocalError(message: "Bu cihazda zaten bir hesap açık. Önce mevcut hesabınızı kontrol edin.") }
+        guard try SharedStorage.session() == nil else { throw LocalError(message: L10n.text("Bu cihazda zaten bir hesap açık. Önce mevcut hesabınızı kontrol edin.")) }
         let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let registration: PendingRegistration
         if let pending = try SharedStorage.registration() {
-            guard pending.name == normalizedName, pending.enabled == enabled else { throw LocalError(message: "Bekleyen kayıt için önceki ad ve tercihle yeniden deneyin veya denemeyi sıfırlayın.") }
+            guard pending.name == normalizedName, pending.enabled == enabled else { throw LocalError(message: L10n.text("Bekleyen kayıt için önceki ad ve tercihle yeniden deneyin veya denemeyi sıfırlayın.")) }
             registration = pending
         } else {
             var bytes = [UInt8](repeating: 0, count: 32)
-            guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { throw LocalError(message: "Güvenli hesap anahtarı oluşturulamadı.") }
+            guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { throw LocalError(message: L10n.text("Güvenli hesap anahtarı oluşturulamadı.")) }
             let secret = Data(bytes).base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
-            registration = PendingRegistration(name: normalizedName, enabled: enabled, secret: secret, createdAt: Date())
+            registration = PendingRegistration(name: normalizedName, enabled: enabled, secret: secret, createdAt: Date(), timezone: TimeZone.current.identifier)
             try SharedStorage.saveRegistration(registration)
         }
-        let auth: AuthSession = try await send("POST", "/auth/device", body: ["name": registration.name, "enabled": registration.enabled, "device_name": "iPhone / iPad", "registration_secret": registration.secret], token: nil)
+        var body: [String: Any] = ["name": registration.name, "enabled": registration.enabled, "device_name": "iPhone / iPad", "registration_secret": registration.secret]
+        if let timezone = registration.timezone { body["timezone"] = timezone }
+        let auth: AuthSession = try await send("POST", "/auth/device", body: body, token: nil)
         try SharedStorage.save(auth)
         SharedStorage.clearRegistration()
         SharedStorage.defaults.removeObject(forKey: "snapshot")
         SharedStorage.defaults.removeObject(forKey: "pending")
         SharedStorage.defaults.removeObject(forKey: "profile")
+        SharedStorage.saveWidgetFailure(nil)
         WidgetCenter.shared.reloadAllTimelines()
     }
-    func logout() async throws {
-        let _: EmptyResponse = try await request("POST", "/auth/logout")
+    func logout(expectedUser: String? = nil) async throws {
+        let _: EmptyResponse = try await request("POST", "/auth/logout", expectedUser: expectedUser)
         let descriptor = try await lock()
         defer { unlock(descriptor) }
+        if let expectedUser, let current = try SharedStorage.session(), current.auth.userId != expectedUser { return }
         SharedStorage.clear()
     }
     func forgetSession() async throws {
@@ -187,35 +226,78 @@ actor APIClient {
         defer { unlock(descriptor) }
         SharedStorage.clear()
     }
+    private func invalidateSession(expectedUser: String?, expectedAccess: String?) async {
+        guard let descriptor = try? await lock() else { return }
+        defer { unlock(descriptor) }
+        let current: StoredSession?
+        do { current = try SharedStorage.session() }
+        catch { return }
+        guard let current else {
+            await MainActor.run { NotificationCenter.default.post(name: .init("HYSessionExpired"), object: expectedUser) }
+            return
+        }
+        if let expectedUser, current.auth.userId != expectedUser { return }
+        if let expectedAccess, current.auth.accessToken != expectedAccess { return }
+        SharedStorage.clear()
+        await MainActor.run { NotificationCenter.default.post(name: .init("HYSessionExpired"), object: expectedUser) }
+    }
     func request<T: Decodable>(_ method: String, _ path: String, body: [String: Any]? = nil, authenticated: Bool = true, key: String? = nil, expectedUser: String? = nil) async throws -> T {
+        let captured = authenticated ? (try? SharedStorage.session()) : nil
+        let capturedUser = expectedUser ?? captured?.auth.userId
+        var attemptedAccess: String? = nil
         do {
-            let access = authenticated ? try await token(expectedUser: expectedUser) : nil
-            return try await send(method, path, body: body, token: access, key: key)
+            if !authenticated {
+                return try await send(method, path, body: body, token: nil, key: key)
+            }
+            let access = try await credential(expectedUser: capturedUser)
+            attemptedAccess = access.token
+            do {
+                return try await send(method, path, body: body, token: access.token, key: key)
+            } catch let error as BackendError where error.code == "unauthorized" {
+                let retry = try await credential(expectedUser: capturedUser, replacing: access.token)
+                attemptedAccess = retry.token
+                return try await send(method, path, body: body, token: retry.token, key: key)
+            }
         } catch let error as BackendError {
             if authenticated && ["unauthorized", "session_expired", "session_reused"].contains(error.code) {
-                try await forgetSession()
-                await MainActor.run { NotificationCenter.default.post(name: .init("HYSessionExpired"), object: nil) }
+                await invalidateSession(expectedUser: capturedUser, expectedAccess: attemptedAccess ?? captured?.auth.accessToken)
             }
             throw error
         }
     }
+    private func recordServerTime(_ http: HTTPURLResponse, data: Data) {
+        var server: Date? = nil
+        if let object = try? JSONSerialization.jsonObject(with: data), let map = object as? [String: Any],
+           let value = map["server_time"] as? String {
+            server = DateText.parseISO(value)
+        }
+        if server == nil, let value = http.value(forHTTPHeaderField: "X-Server-Time") {
+            server = DateText.parseISO(value)
+        }
+        if server == nil, let value = http.value(forHTTPHeaderField: "Date") {
+            server = DateText.httpDate(value)
+        }
+        if let server { ServerClock.record(server) }
+    }
     private func send<T: Decodable>(_ method: String, _ path: String, body: [String: Any]?, token: String?, key: String? = nil) async throws -> T {
         guard let baseURL, let url = URL(string: baseURL.absoluteString + path),
               url.scheme == "https" || (Self.isLocal && Self.isLANHost(url.host)) else {
-            throw LocalError(message: "Sunucu henüz yapılandırılmadı. Bu sürüm üretim kullanımına hazır değil.")
+            throw LocalError(message: L10n.text("Sunucu henüz yapılandırılmadı. Bu sürüm üretim kullanımına hazır değil."))
         }
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.timeoutInterval = 30
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(L10n.language, forHTTPHeaderField: "Accept-Language")
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         if let key { request.setValue(key, forHTTPHeaderField: "Idempotency-Key") }
         if let body { request.httpBody = try JSONSerialization.data(withJSONObject: body) }
         let (data, response) = try await urlSession.data(for: request)
         let decoder = Self.decoder()
-        guard let http = response as? HTTPURLResponse else { throw LocalError(message: "Sunucudan yanıt alınamadı.") }
+        guard let http = response as? HTTPURLResponse else { throw LocalError(message: L10n.text("Sunucudan yanıt alınamadı.")) }
+        recordServerTime(http, data: data)
         guard (200..<300).contains(http.statusCode) else {
-            throw (try? decoder.decode(BackendError.self, from: data)) ?? BackendError(code: "network_error", message: "İşlem tamamlanamadı. Yeniden deneyin.")
+            throw (try? decoder.decode(BackendError.self, from: data)) ?? BackendError(code: "network_error", message: "")
         }
         return try decoder.decode(T.self, from: data)
     }
@@ -229,24 +311,38 @@ actor APIClient {
             if let date = formatter.date(from: value) { return date }
             formatter.formatOptions = [.withInternetDateTime]
             if let date = formatter.date(from: value) { return date }
-            throw LocalError(message: "Sunucunun tarih biçimi okunamadı.")
+            throw LocalError(message: L10n.text("Sunucunun tarih biçimi okunamadı."))
         }
         return decoder
     }
     func checkIn(profile: Profile, today: Today, source: String) async throws -> Today {
-        guard today.isCurrent() else { throw LocalError(message: "Günlük ekranı yenileyip yeniden dokunun.") }
+        guard let serverNow = ServerClock.now() else {
+            throw LocalError(message: L10n.text("Sunucu saati doğrulanamadı. Bağlanıp yeniden deneyin."))
+        }
+        guard today.isCurrent(at: serverNow) else { throw LocalError(message: L10n.text("Günlük ekranı yenileyip yeniden dokunun.")) }
         let old = SharedStorage.pending()
         let pending: PendingCheckIn
-        if let old, old.userId == profile.id, old.occurrenceId == today.id, Date().timeIntervalSince(old.actionAt) < 300 {
+        if let old, old.userId == profile.id, old.occurrenceId == today.id,
+           serverNow.timeIntervalSince(old.actionAt) >= 0, serverNow.timeIntervalSince(old.actionAt) < 300 {
             pending = old
         } else {
-            pending = PendingCheckIn(userId: profile.id, occurrenceId: today.id, key: UUID().uuidString, source: source, actionAt: Date())
-            SharedStorage.savePending(pending)
+            pending = PendingCheckIn(userId: profile.id, occurrenceId: today.id, key: UUID().uuidString, source: source, actionAt: serverNow)
+            // Başka bir hesaba ait bekleyen eylemi ezmeyin; yalnızca aynı hesap
+            // (veya boş alan) için yeni anahtarı saklayın.
+            if old == nil || old?.userId == profile.id {
+                SharedStorage.savePending(pending)
+            }
         }
         let receipt: Receipt = try await request("POST", "/me/checkins", body: ["occurrence_id": pending.occurrenceId, "source": pending.source, "client_action_at": DateText.iso(pending.actionAt)], key: pending.key, expectedUser: profile.id)
-        SharedStorage.savePending(nil)
-        let updated = Today(id: today.id, userId: profile.id, localDate: today.localDate, state: receipt.status, dueAt: today.dueAt, deadlineAt: today.deadlineAt, closesAt: today.closesAt, completedAt: receipt.receivedAt, nextDueAt: today.nextDueAt, trustedContacts: today.trustedContacts, serverTime: receipt.receivedAt, remindersEnabled: today.remindersEnabled)
+        if let stored = SharedStorage.pending(), stored.userId == profile.id, stored.key == pending.key {
+            SharedStorage.savePending(nil)
+        }
+        let updated = Today(id: today.id, userId: profile.id, localDate: today.localDate, state: receipt.status, dueAt: today.dueAt, deadlineAt: today.deadlineAt, closesAt: today.closesAt, completedAt: receipt.receivedAt, nextDueAt: today.nextDueAt, trustedContacts: today.trustedContacts, serverTime: ServerClock.now() ?? receipt.receivedAt, remindersEnabled: today.remindersEnabled, timezone: today.timezone, startsAt: today.startsAt, nextScheduleMinute: today.nextScheduleMinute, nextGraceMinutes: today.nextGraceMinutes)
         SharedStorage.saveSnapshot(profile: profile, today: updated)
+        if SharedStorage.widgetFailure()?.userId == profile.id {
+            SharedStorage.saveWidgetFailure(nil)
+            WidgetCenter.shared.reloadAllTimelines()
+        }
         return updated
     }
 }
