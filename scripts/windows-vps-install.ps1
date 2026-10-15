@@ -98,7 +98,7 @@ $ip.sslip.io {
 
 # --- 7. Services ---
 $merged = [ordered]@{}
-Get-Content $envFile | ForEach-Object { if ($_ -match '^\s*([A-Za-z_]+)\s*=\s*(.*)$') { $merged[$Matches[1].Trim()] = $Matches[2].Trim() } }
+Get-Content $envFile | ForEach-Object { if ($_ -match '^\s*([A-Za-z_]+)\s*=\s*(.*)$') { $v = $Matches[2].Trim(); if ($v -match '^".*"$') { $v = $v.Trim('"') }; $merged[$Matches[1].Trim()] = $v } }
 # Bind localhost only — Caddy is the public edge on 443
 $merged['NODE_ENV'] = 'production'; $merged['HOST'] = '127.0.0.1'
 $merged['PORT'] = '3000'; $merged['SCHEDULER_MODE'] = 'external'
