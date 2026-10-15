@@ -80,8 +80,8 @@ struct YolundaWidget: Widget {
     let kind = "YolundaDailyCheckIn"
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: YolundaProvider()) { entry in YolundaWidgetView(entry: entry) }
-            .configurationDisplayName(LocalizedStringResource("Ben iyiyim", locale: L10n.locale))
-            .description(LocalizedStringResource("Bir dokunuşla ailenize haber verin. Konum paylaşılmaz.", locale: L10n.locale))
+            .configurationDisplayName(L10n.text("Ben iyiyim"))
+            .description(L10n.text("Bir dokunuşla ailenize haber verin. Konum paylaşılmaz."))
             .supportedFamilies([.systemMedium, .systemLarge])
     }
 }

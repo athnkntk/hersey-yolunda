@@ -170,6 +170,10 @@ enum ErrorText {
     }
 }
 
+struct RecoveryStatus: Decodable { let enabled: Bool; let version: Int; let updatedAt: Date? }
+struct PendingRecoverySetup: Codable, Equatable { let userId: String; let key: String; let expectedVersion: Int }
+struct PendingAccountRecovery: Codable, Equatable { let key: String; let replacementKey: String; let requestID: String; let deviceName: String }
+
 struct PendingCheckIn: Codable {
     let userId: String
     let occurrenceId: String

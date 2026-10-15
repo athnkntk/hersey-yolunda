@@ -30,7 +30,10 @@ const englishErrors: Record<string, string> = {
   stale_action: 'Please tap again to send a new check-in.',
   paused: 'Today’s check-in is paused. Resume it first.',
   invalid_invitation: 'This invitation is invalid, expired, or already used.',
-  circle_limit: 'You can share your daily check-ins with up to 10 people.'
+  circle_limit: 'You can share your daily check-ins with up to 10 people.',
+  recovery_invalid: 'The recovery key is invalid, changed, or already used. Use the new key you saved during your last recovery attempt.',
+  recovery_changed: 'Recovery settings changed. Refresh and try again.',
+  recovery_key_unavailable: 'This recovery key cannot be used. Generate a new key.'
 };
 export function errorMessage(code: string, fallback: string, language: Language): string {
   return language === 'tr' ? fallback : englishErrors[code] ?? englishErrors.internal_error;

@@ -33,5 +33,12 @@ test('v5 migration preserves legacy telephone account, session, relationship and
     const legacy = await db.transaction(tx => tx.query('SELECT phone_hash,phone_encrypted FROM users WHERE id=$1', [owner]));
     assert.equal(legacy.rows[0].phone_hash, `legacy-${owner}`);
     assert.equal(legacy.rows[0].phone_encrypted, 'legacy-ciphertext-fixture');
+    // v7: mevcut hesaplar için kurtarma kapalı ve sürüm 0 kalır; yeni tablo boştur.
+    const recovery = await db.transaction(tx => tx.query('SELECT recovery_key_hash,recovery_key_version,recovery_key_set_at FROM users WHERE id=$1', [owner]));
+    assert.equal(recovery.rows[0].recovery_key_hash, null);
+    assert.equal(recovery.rows[0].recovery_key_version, 0);
+    assert.equal(recovery.rows[0].recovery_key_set_at, null);
+    assert.equal((await db.transaction(tx => tx.query('SELECT 1 FROM account_recoveries'))).rows.length, 0);
+    assert.deepEqual((await db.transaction(tx => tx.query('SELECT version FROM schema_migrations ORDER BY version'))).rows.map(row => row.version), [1, 2, 3, 4, 5, 6, 7]);
   } finally { await db.close(); }
 });

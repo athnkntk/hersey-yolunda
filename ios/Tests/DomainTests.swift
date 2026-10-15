@@ -326,4 +326,45 @@ final class DomainTests: XCTestCase {
         let second = LocalNotifications.nextScheduleRevision()
         XCTAssertGreaterThan(second, first)
     }
+
+    // --- Kurtarma anahtarı ---------------------------------------------------
+    func testRecoveryKeyGeneratorProducesCanonical48CharacterKey() throws {
+        let key = try RecoveryKey.generate()
+        XCTAssertTrue(key.hasPrefix("HYR1."))
+        XCTAssertEqual(key.count, 48)
+        XCTAssertTrue(RecoveryKey.isValid(key))
+        XCTAssertFalse(try RecoveryKey.generate() == key, "keys must be unique random values")
+        // Davet bağlantısı belirteci (43 karakter) kurtarma anahtarı sayılmaz.
+        let inviteToken = String(repeating: "a", count: 43)
+        XCTAssertFalse(RecoveryKey.isValid(inviteToken))
+        XCTAssertFalse(RecoveryKey.isValid("HYR1." + inviteToken.dropLast()), "truncated payload must fail")
+        XCTAssertFalse(RecoveryKey.isValid(key.lowercased()), "case must be preserved")
+        XCTAssertFalse(RecoveryKey.isValid(" " + key), "leading space inside isValid must fail")
+        XCTAssertEqual(RecoveryKey.normalized("  \(key)\n"), key, "outer whitespace is trimmed")
+        XCTAssertNil(RecoveryKey.normalized("AYŞE-1234"), "names are never recovery credentials")
+        XCTAssertNil(RecoveryKey.normalized("HYR1." + String(repeating: "=", count: 43)), "padding characters are not valid payload")
+    }
+    func testPendingRecoveryRecordsPersistInKeychainNotDefaults() throws {
+        SharedStorage.clearAccountRecovery()
+        SharedStorage.clearRecoverySetup()
+        defer { SharedStorage.clearAccountRecovery(); SharedStorage.clearRecoverySetup() }
+        let recovery = PendingAccountRecovery(key: "HYR1." + String(repeating: "a", count: 43),
+            replacementKey: "HYR1." + String(repeating: "b", count: 43), requestID: "req-1", deviceName: "iPhone / iPad")
+        try SharedStorage.saveAccountRecovery(recovery)
+        XCTAssertEqual(try SharedStorage.accountRecovery(), recovery, "pending recovery must round-trip through Keychain")
+        XCTAssertNil(SharedStorage.defaults.data(forKey: "pending-account-recovery"), "recovery record must not live in UserDefaults")
+        let setup = PendingRecoverySetup(userId: "u1", key: recovery.replacementKey, expectedVersion: 2)
+        try SharedStorage.saveRecoverySetup(setup)
+        XCTAssertEqual(try SharedStorage.recoverySetup(), setup)
+        XCTAssertNil(SharedStorage.defaults.data(forKey: "pending-recovery-setup"))
+    }
+    func testRecoveryStatusDecodes() throws {
+        let enabled = try APIClient.decoder().decode(RecoveryStatus.self, from: Data("{\"enabled\":true,\"version\":3,\"updated_at\":\"2026-10-20T05:00:00Z\"}".utf8))
+        XCTAssertTrue(enabled.enabled)
+        XCTAssertEqual(enabled.version, 3)
+        XCTAssertNotNil(enabled.updatedAt)
+        let disabled = try APIClient.decoder().decode(RecoveryStatus.self, from: Data("{\"enabled\":false,\"version\":0,\"updated_at\":null}".utf8))
+        XCTAssertFalse(disabled.enabled)
+        XCTAssertNil(disabled.updatedAt)
+    }
 }

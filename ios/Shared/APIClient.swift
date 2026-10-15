@@ -43,34 +43,48 @@ enum SharedStorage {
     static func save(_ session: AuthSession) throws {
         try saveStored(StoredSession(auth: session, expiresAt: Date().addingTimeInterval(TimeInterval(session.expiresIn))))
     }
-    static var registrationQuery: [String: Any] {
+    private static func itemQuery(_ account: String) -> [String: Any] {
         var query = keychainQuery
-        query[kSecAttrAccount as String] = "pending-registration"
+        query[kSecAttrAccount as String] = account
         return query
     }
-    static func registration() throws -> PendingRegistration? {
-        var query = registrationQuery
+    private static func readItem<T: Decodable>(_ account: String) throws -> T? {
+        var query = itemQuery(account)
         query[kSecReturnData as String] = true
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess, let data = result as? Data else { throw LocalError(message: L10n.text("Bekleyen hesap kaydı güvenli alandan okunamadı.")) }
-        return try JSONDecoder().decode(PendingRegistration.self, from: data)
+        guard status == errSecSuccess, let data = result as? Data else { throw LocalError(message: L10n.text("Bekleyen kayıt güvenli alandan okunamadı.")) }
+        return try JSONDecoder().decode(T.self, from: data)
     }
-    static func saveRegistration(_ registration: PendingRegistration) throws {
-        let data = try JSONEncoder().encode(registration)
-        let status = SecItemUpdate(registrationQuery as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+    private static func writeItem<T: Encodable>(_ account: String, _ value: T) throws {
+        let data = try JSONEncoder().encode(value)
+        let status = SecItemUpdate(itemQuery(account) as CFDictionary, [kSecValueData as String: data] as CFDictionary)
         if status == errSecItemNotFound {
-            var query = registrationQuery
+            var query = itemQuery(account)
             query[kSecValueData as String] = data
             query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            guard SecItemAdd(query as CFDictionary, nil) == errSecSuccess else { throw LocalError(message: L10n.text("Hesap anahtarı güvenli biçimde kaydedilemedi.")) }
-        } else if status != errSecSuccess { throw LocalError(message: L10n.text("Bekleyen hesap kaydı güncellenemedi.")) }
+            guard SecItemAdd(query as CFDictionary, nil) == errSecSuccess else { throw LocalError(message: L10n.text("Kayıt güvenli biçimde saklanamadı.")) }
+        } else if status != errSecSuccess { throw LocalError(message: L10n.text("Bekleyen kayıt güncellenemedi.")) }
     }
-    static func clearRegistration() { SecItemDelete(registrationQuery as CFDictionary) }
+    private static func clearItem(_ account: String) { SecItemDelete(itemQuery(account) as CFDictionary) }
+    static var registrationQuery: [String: Any] { itemQuery("pending-registration") }
+    static func registration() throws -> PendingRegistration? { try readItem("pending-registration") }
+    static func saveRegistration(_ registration: PendingRegistration) throws { try writeItem("pending-registration", registration) }
+    static func clearRegistration() { clearItem("pending-registration") }
+    /// Bekleyen kurtarma anahtarı kurulumu ve hesap kurtarma denemesi de oturumla
+    /// aynı erişim grubunda/AfterFirstUnlockThisDeviceOnly Keychain'de tutulur.
+    static func recoverySetup() throws -> PendingRecoverySetup? { try readItem("pending-recovery-setup") }
+    static func saveRecoverySetup(_ value: PendingRecoverySetup) throws { try writeItem("pending-recovery-setup", value) }
+    static func clearRecoverySetup() { clearItem("pending-recovery-setup") }
+    static func accountRecovery() throws -> PendingAccountRecovery? { try readItem("pending-account-recovery") }
+    static func saveAccountRecovery(_ value: PendingAccountRecovery) throws { try writeItem("pending-account-recovery", value) }
+    static func clearAccountRecovery() { clearItem("pending-account-recovery") }
     static func clear() {
         SecItemDelete(keychainQuery as CFDictionary)
         clearRegistration()
+        clearRecoverySetup()
+        clearAccountRecovery()
         defaults.removeObject(forKey: "snapshot")
         defaults.removeObject(forKey: "pending")
         defaults.removeObject(forKey: "profile")
@@ -208,6 +222,93 @@ actor APIClient {
         let auth: AuthSession = try await send("POST", "/auth/device", body: body, token: nil)
         try SharedStorage.save(auth)
         SharedStorage.clearRegistration()
+        SharedStorage.clearRecoverySetup()
+        SharedStorage.clearAccountRecovery()
+        SharedStorage.defaults.removeObject(forKey: "snapshot")
+        SharedStorage.defaults.removeObject(forKey: "pending")
+        SharedStorage.defaults.removeObject(forKey: "profile")
+        SharedStorage.saveWidgetFailure(nil)
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+    func recoveryStatus(expectedUser: String) async throws -> RecoveryStatus {
+        try await request("GET", "/me/recovery-key", expectedUser: expectedUser)
+    }
+    /// Anahtarı yerel olarak üretir; sunucuda hiçbir şey değiştirmez. Aynı hesap için
+    /// bekleyen kurulum varsa yeniden kullanır (kayıp yanıt/tekrar güvenli).
+    func prepareRecoveryKey(expectedUser: String) async throws -> PendingRecoverySetup {
+        let status = try await recoveryStatus(expectedUser: expectedUser)
+        let descriptor = try await lock()
+        defer { unlock(descriptor) }
+        guard let stored = try SharedStorage.session(), stored.auth.userId == expectedUser else {
+            throw LocalError(message: L10n.text("Aktif hesap değişti. Ekranı yenileyin."))
+        }
+        if let pending = try SharedStorage.recoverySetup(), pending.userId == expectedUser, pending.expectedVersion == status.version {
+            return pending
+        }
+        let pending = PendingRecoverySetup(userId: expectedUser, key: try RecoveryKey.generate(), expectedVersion: status.version)
+        try SharedStorage.saveRecoverySetup(pending)
+        return pending
+    }
+    func activateRecoveryKey(_ pending: PendingRecoverySetup) async throws -> RecoveryStatus {
+        let status: RecoveryStatus = try await request("PUT", "/me/recovery-key",
+            body: ["recovery_key": pending.key, "expected_version": pending.expectedVersion], expectedUser: pending.userId)
+        if let stored = try SharedStorage.recoverySetup(), stored.userId == pending.userId, stored.key == pending.key {
+            SharedStorage.clearRecoverySetup()
+        }
+        return status
+    }
+    func disableRecoveryKey(expectedUser: String, version: Int) async throws -> RecoveryStatus {
+        let status: RecoveryStatus = try await request("DELETE", "/me/recovery-key",
+            body: ["expected_version": version], expectedUser: expectedUser)
+        if let stored = try SharedStorage.recoverySetup(), stored.userId == expectedUser {
+            SharedStorage.clearRecoverySetup()
+        }
+        return status
+    }
+    /// Yeni anahtar ve istek kimliğini ağ çağrısından ÖNCE kalıcı saklar; aynı eski
+    /// anahtarla tekrar denemede aynı kayıt döner. Farklı bir anahtar varsa eski
+    /// denemeyi sessizce ezmez — kullanıcının açıkça silmesi gerekir.
+    func prepareAccountRecovery(key: String) async throws -> PendingAccountRecovery {
+        guard let normalized = RecoveryKey.normalized(key) else {
+            throw LocalError(message: L10n.text("Kurtarma anahtarı biçimi geçersiz. Anahtar “HYR1.” ile başlar."))
+        }
+        let descriptor = try await lock()
+        defer { unlock(descriptor) }
+        guard try SharedStorage.session() == nil else {
+            throw LocalError(message: L10n.text("Bu cihazda açık bir hesap var. Kurtarma yalnızca oturum kapalıyken kullanılır."))
+        }
+        if let pending = try SharedStorage.accountRecovery() {
+            if pending.key == normalized { return pending }
+            throw LocalError(message: L10n.text("Bekleyen bir kurtarma denemesi var. Farklı bir anahtarla devam etmek için önce onu silin."))
+        }
+        let pending = PendingAccountRecovery(key: normalized, replacementKey: try RecoveryKey.generate(),
+            requestID: UUID().uuidString, deviceName: "iPhone / iPad")
+        try SharedStorage.saveAccountRecovery(pending)
+        return pending
+    }
+    func discardAccountRecovery() { SharedStorage.clearAccountRecovery() }
+    /// Kimliksiz uç: başarılı yanıt önce oturum olarak kaydedilir, sonra eski hesabın
+    /// yerel izleri temizlenir. SharedStorage.clear() yeni oturumu da sileceği için
+    /// burada kullanılmaz; dil ve sunucu saati korunur.
+    func recoverAccount(_ pending: PendingAccountRecovery) async throws {
+        let descriptor = try await lock()
+        defer { unlock(descriptor) }
+        guard try SharedStorage.session() == nil else {
+            throw LocalError(message: L10n.text("Bu cihazda açık bir hesap var. Kurtarma yalnızca oturum kapalıyken kullanılır."))
+        }
+        guard let stored = try SharedStorage.accountRecovery(), stored == pending else {
+            throw LocalError(message: L10n.text("Bekleyen kurtarma denemesi değişti. Yeniden başlatın."))
+        }
+        let auth: AuthSession = try await send("POST", "/auth/recover", body: [
+            "recovery_key": pending.key,
+            "replacement_key": pending.replacementKey,
+            "request_id": pending.requestID,
+            "device_name": pending.deviceName
+        ], token: nil)
+        try SharedStorage.save(auth)
+        SharedStorage.clearRegistration()
+        SharedStorage.clearRecoverySetup()
+        SharedStorage.clearAccountRecovery()
         SharedStorage.defaults.removeObject(forKey: "snapshot")
         SharedStorage.defaults.removeObject(forKey: "pending")
         SharedStorage.defaults.removeObject(forKey: "profile")

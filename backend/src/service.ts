@@ -15,6 +15,16 @@ const invitationCredential = z.object({
   code: z.string().max(32).transform(value => value.replace(/[-\s]/g, '').toUpperCase()).pipe(z.string().regex(/^[A-HJ-NP-Z2-9]{12}$/)).optional()
 }).strict().refine(value => Boolean(value.token) !== Boolean(value.code), 'Tek bir davet kodu veya bağlantısı kullanın.');
 const uuid = z.string().uuid();
+const recoveryKey = z.string().regex(/^HYR1\.[A-Za-z0-9_-]{43}$/).refine(value => {
+  const bytes = Buffer.from(value.slice(5), 'base64url');
+  return bytes.length === 32 && bytes.toString('base64url') === value.slice(5);
+});
+const recoverAccountInput = z.object({
+  recovery_key: recoveryKey,
+  replacement_key: recoveryKey,
+  request_id: uuid,
+  device_name: z.string().trim().min(1).max(80)
+}).strict().refine(v => v.recovery_key !== v.replacement_key);
 const labels = z.enum(['Oğlum', 'Kızım', 'Eşim', 'Kardeşim', 'Torunum', 'Yakınım', 'Diğer']);
 const validTimeZone = (value: string): boolean => {
   if (value !== 'UTC' && value !== 'GMT' && !value.includes('/')) return false;
@@ -85,6 +95,9 @@ export class Service {
   private profile(row: any) {
     return { id: row.id, name: row.name, timezone: row.timezone, enabled: row.enabled, schedule_minute: row.schedule_minute, grace_minutes: row.grace_minutes };
   }
+  private recoveryStatus(user: any) {
+    return { enabled: Boolean(user.recovery_key_hash), version: user.recovery_key_version, updated_at: user.recovery_key_set_at ? iso(user.recovery_key_set_at) : null };
+  }
   private async schedule(db: SQL, user: any, day: string) {
     return await this.one(db, 'SELECT minute,grace,effective_date FROM schedules WHERE user_id=$1 AND effective_date <= $2 ORDER BY effective_date DESC LIMIT 1', [user.id, day])
       ?? { minute: user.schedule_minute, grace: user.grace_minutes, effective_date: day };
@@ -154,6 +167,12 @@ export class Service {
         await this.limit(db, `invite-network:${this.lookup(ip)}`, 60, 600);
       });
     }
+    // Kurtarma tahminleri ana işlem başarısız olsa bile limiti tüketmeli;
+    // davet-tahmin limitiyle aynı şekilde önceden commitlenmiş transaction'da sayılır.
+    const recovery = method === 'POST' && path === '/auth/recover' ? recoverAccountInput.parse(body) : undefined;
+    if (recovery) await this.database.transaction(async db => {
+      await this.limit(db, `recovery-network:${this.lookup(ip)}`, 10, 600);
+    });
     const result = await this.database.transaction(async db => {
       if (path === '/health') return { status: 'ok', mode: this.options.mode, push_configured: this.options.pushConfigured ?? false, sms_configured: false };
       if (path.startsWith('/auth/otp/')) fail(410, 'auth_method_removed', 'Telefonla giriş kaldırıldı. Uygulamayı güncelleyip adınızla yeni cihaz hesabı oluşturun. Mevcut oturumunuz varsa kullanmaya devam edebilirsiniz.');
@@ -206,6 +225,32 @@ export class Service {
             key ? new Date(this.now().getTime() + 60000) : null]);
         return response;
       }
+      if (recovery) {
+        const oldHash = this.lookup('recovery:' + recovery.recovery_key);
+        const replacementHash = this.lookup('recovery:' + recovery.replacement_key);
+        const requestHash = hash(recovery.request_id);
+        const fingerprint = hash(JSON.stringify([oldHash, replacementHash, recovery.device_name]));
+        const prior = await this.one(db, 'SELECT ar.*,u.recovery_key_hash AS current_key_hash FROM account_recoveries ar JOIN users u ON u.id=ar.user_id WHERE ar.request_hash=$1', [requestHash]);
+        if (prior) {
+          if (prior.fingerprint !== fingerprint || prior.old_key_hash !== oldHash || prior.current_key_hash !== replacementHash || new Date(prior.expires_at) <= this.now()) fail(401,'recovery_invalid','Kurtarma anahtarı geçersiz, değiştirilmiş veya daha önce kullanılmış.');
+          const active = await this.one(db, 'SELECT id FROM sessions WHERE family_id=$1 AND NOT revoked AND refresh_expires>$2 LIMIT 1', [prior.family_id,this.now()]);
+          if (!active) fail(401,'recovery_invalid','Kurtarma anahtarı geçersiz, değiştirilmiş veya daha önce kullanılmış.');
+          return JSON.parse(this.decrypt(prior.response_encrypted));
+        }
+        const recovered = await this.one(db, 'SELECT * FROM users WHERE recovery_key_hash=$1', [oldHash]);
+        if (!recovered) fail(401,'recovery_invalid','Kurtarma anahtarı geçersiz, değiştirilmiş veya daha önce kullanılmış.');
+        const collision = await this.one(db, 'SELECT id FROM users WHERE recovery_key_hash=$1 AND id<>$2', [replacementHash,recovered.id]);
+        if (collision) fail(409,'recovery_key_unavailable','Bu kurtarma anahtarı kullanılamıyor. Yeni bir anahtar oluşturun.');
+        await db.query('UPDATE sessions SET revoked=true WHERE user_id=$1',[recovered.id]);
+        await db.query("UPDATE devices SET token_encrypted=NULL,permission='denied' WHERE user_id=$1",[recovered.id]);
+        await db.query('UPDATE account_registrations SET expires_at=$1 WHERE user_id=$2',[this.now(),recovered.id]);
+        await db.query('UPDATE users SET recovery_key_hash=$2,recovery_key_version=recovery_key_version+1,recovery_key_set_at=$3 WHERE id=$1',[recovered.id,replacementHash,this.now()]);
+        const family = id();
+        const response = await this.issue(db,recovered.id,recovery.device_name,family);
+        await db.query('INSERT INTO account_recoveries(request_hash,user_id,old_key_hash,replacement_key_hash,fingerprint,family_id,response_encrypted,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[requestHash,recovered.id,oldHash,replacementHash,fingerprint,family,this.encrypt(JSON.stringify(response)),new Date(this.now().getTime()+10*60000)]);
+        await this.audit(db,recovered.id,'account_recovered');
+        return response;
+      }
       const session = await this.one(db, 'SELECT * FROM sessions WHERE access_hash=$1 AND NOT revoked AND access_expires>$2', [hash(token), this.now()]);
       if (!session) fail(401, 'unauthorized', 'Lütfen yeniden giriş yapın.');
       const user = await this.one(db, 'SELECT * FROM users WHERE id=$1', [session.user_id]);
@@ -216,6 +261,28 @@ export class Service {
         return { ok: true };
       }
       if (path === '/me' && method === 'GET') return this.profile(user);
+      if (path === '/me/recovery-key' && method === 'GET') return this.recoveryStatus(user);
+      if (path === '/me/recovery-key' && method === 'PUT') {
+        const input = z.object({ recovery_key: recoveryKey, expected_version: z.number().int().nonnegative() }).strict().parse(body);
+        const digest = this.lookup('recovery:' + input.recovery_key);
+        // Kayıp yanıtın tekrarı: aynı anahtar zaten kayıtlıysa mevcut durumu döndür.
+        if (user.recovery_key_hash === digest) return this.recoveryStatus(user);
+        if (input.expected_version !== user.recovery_key_version) fail(409,'recovery_changed','Kurtarma ayarı değişti. Ekranı yenileyip yeniden deneyin.');
+        await this.limit(db, `recovery-setup:${user.id}`, 5, 3600);
+        const existing = await this.one(db, 'SELECT id FROM users WHERE recovery_key_hash=$1 AND id<>$2', [digest,user.id]);
+        if (existing) fail(409,'recovery_key_unavailable','Bu kurtarma anahtarı kullanılamıyor. Yeni bir anahtar oluşturun.');
+        const updated = await this.one(db, 'UPDATE users SET recovery_key_hash=$2,recovery_key_version=recovery_key_version+1,recovery_key_set_at=$3 WHERE id=$1 RETURNING *', [user.id,digest,this.now()]);
+        await this.audit(db,user.id,'recovery_key_changed');
+        return this.recoveryStatus(updated);
+      }
+      if (path === '/me/recovery-key' && method === 'DELETE') {
+        const input = z.object({ expected_version: z.number().int().nonnegative() }).strict().parse(body);
+        if (!user.recovery_key_hash) return this.recoveryStatus(user);
+        if (input.expected_version !== user.recovery_key_version) fail(409,'recovery_changed','Kurtarma ayarı değişti. Ekranı yenileyip yeniden deneyin.');
+        const updated = await this.one(db, 'UPDATE users SET recovery_key_hash=NULL,recovery_key_version=recovery_key_version+1,recovery_key_set_at=NULL WHERE id=$1 RETURNING *', [user.id]);
+        await this.audit(db,user.id,'recovery_key_disabled');
+        return this.recoveryStatus(updated);
+      }
       if (path === '/me/profile' && method === 'PATCH') {
         const input = z.object({ name: z.string().trim().min(1).max(60), enabled: z.boolean().optional() }).parse(body);
         const enabled = input.enabled ?? user.enabled;
@@ -441,6 +508,7 @@ export class Service {
       await db.query('DELETE FROM invitations WHERE expires_at<$1', [new Date(this.now().getTime() - 30 * 86400000)]);
       await db.query('DELETE FROM sessions WHERE refresh_expires<$1', [new Date(this.now().getTime() - 30 * 86400000)]);
       await db.query('UPDATE sessions SET refresh_response_encrypted=NULL,refresh_request_hash=NULL,refresh_replay_until=NULL WHERE refresh_replay_until<=$1', [this.now()]);
+      await db.query('DELETE FROM account_recoveries WHERE expires_at<=$1',[this.now()]);
     });
   }
 }

@@ -87,9 +87,11 @@ struct SessionExpiredView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     Label("Herşey Yolunda", systemImage: "leaf.fill").font(.title2.bold()).foregroundStyle(Design.green)
                     Text(L10n.text("Oturum kullanılamıyor")).font(.largeTitle.bold())
-                    Text(L10n.text("Bu cihazın oturumu artık kullanılamıyor. Adınız veya hesap kimliğiniz eski hesabı geri açmaz. Yeni hesap oluşturursanız aile bağlantılarını yeniden kurmanız gerekir.")).font(.title3)
+                    Text(L10n.text("Bu cihazın oturumu artık kullanılamıyor. Adınız veya hesap kimliğiniz eski hesabı geri açmaz. Kaydettiğiniz kurtarma anahtarı varsa aynı hesaba dönebilirsiniz; yoksa yeni hesap oluşturup aile bağlantılarını yeniden kurmanız gerekir.")).font(.title3)
                     PrimaryButton(title: L10n.text("Yeni hesap oluştur")) { state.sessionExpired = false }
                         .accessibilityIdentifier("sessionExpiredContinue")
+                    NavigationLink(L10n.text("Kurtarma anahtarım var")) { RecoverAccountView() }
+                        .frame(minHeight: 56).accessibilityIdentifier("recoverAccountLink")
                     Link(L10n.text("Destek sayfası"), destination: URL(string: "https://athnkntk.github.io/hersey-yolunda/?lang=\(L10n.language)")!).frame(minHeight: 56)
                 }.padding(24)
             }.background(Design.background)
@@ -173,11 +175,13 @@ struct WelcomeView: View {
                             .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             .accessibilityIdentifier("createAccount")
                     }
-                    Text(L10n.text("Adınız şifre değildir. Yeni cihazda aynı adı yazmak eski hesabınızı açmaz. Bu sürümde Apple ile kurtarma henüz yok; telefon veya oturum kaybında yeni hesap ve aile eşleştirmesi gerekir."))
+                    Text(L10n.text("Adınız şifre değildir. Yeni cihazda aynı adı yazmak eski hesabınızı açmaz. Başka bir cihazda hesabınıza dönebilmek için Ayarlar’dan kurtarma anahtarı oluşturup güvenli bir yere kaydedin."))
                         .font(.callout).foregroundStyle(.secondary)
                     if hasPending {
                         Button(L10n.text("Bekleyen hesap oluşturma denemesini sıfırla")) { confirmReset = true }.frame(minHeight: 56)
                     }
+                    NavigationLink(L10n.text("Kurtarma anahtarım var")) { RecoverAccountView() }
+                        .frame(minHeight: 56).accessibilityIdentifier("recoverAccountLink")
                     NavigationLink(L10n.text("Hesabım ve kurtarma hakkında")) { AccountAccessView() }.frame(minHeight: 56)
                     NavigationLink(L10n.text("Gizlilik ve kullanım sınırları")) { PrivacyView() }.frame(minHeight: 56)
                     if APIClient.isLocal { Label(L10n.text("Yerel test sürümü · Gerçek push gönderilmez"), systemImage: "hammer").foregroundStyle(Design.amber) }

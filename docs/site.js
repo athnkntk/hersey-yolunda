@@ -18,7 +18,7 @@
       how3: "Her gün tek dokunuşla “İyiyim” haberinizi gönderin.",
       how4: "İzin verdiğiniz yakınlarınız haberinizi uygulamada görür.",
       faqAccountTitle: "Hesap ve giriş",
-      faqAccountBody: "Hesabınızı oluşturmak için yalnızca adınızı yazarsınız; telefon, e-posta veya SMS ile giriş yoktur. Adınız bir kimlik bilgisi değildir. Bu sürümde hesap kurtarma yoktur: cihazınızı veya oturumunuzu kaybederseniz yeni bir hesap oluşturmanız ve aile onayını yeniden almanız gerekir. Apple üzerinden satın alma geri yükleme, abonelik hakkını geri getirir; uygulama hesabınızı veya geçmişinizi geri getirmez.",
+      faqAccountBody: "Hesabınızı oluşturmak için yalnızca adınızı yazarsınız; telefon, e-posta veya SMS ile giriş yoktur. Adınız da hesap kimliğiniz de kimlik bilgisi değildir. Aynı hesaba, geçmişe ve ilişkilere yeni bir cihazda ancak Ayarlar’dan önceden oluşturup güvenli bir yere kaydettiğiniz kurtarma anahtarıyla dönebilirsiniz. Kurtarma eski anahtarı değiştirir ve diğer cihazlardaki oturumları kapatır. Kaydedilmiş anahtarınız yoksa cihazınızı veya oturumunuzu kaybetmek yeni hesap ve yeniden aile onayı demektir. Apple üzerinden satın alma geri yükleme, abonelik hakkını geri getirir; uygulama hesabınızı veya geçmişinizi geri getirmez.",
       faqRoutineTitle: "Günlük rutin",
       faqRoutineBody: "Haber vermek bilinçli bir “İyiyim” dokunuşu gerektirir; onay yalnızca sunucu haberi kaydettikten sonra görünür ve internet bağlantısı gerekir. Hatırlatmalar kişiseldir ve bildirim izninize bağlıdır. Programlar, hesap oluşturulurken kaydedilen hesap saat dilimini kullanır; seyahat ettiğinizde saat dilimi kendiliğinden değişmez. Program düzenlemeleri ertesi gün uygulanır; bugünü duraklatırsanız rutin ertesi gün devam eder.",
       faqConnectionsTitle: "Bağlantılar ve davetler",
@@ -58,7 +58,7 @@
       retentionTitle: "Saklama ve silme",
       retentionBody: "Haber geçmişi 30 günlük temizliğe tabidir; süresi dolan davet kayıtları sürenin dolmasından 30 gün sonra temizlenir; güvenlik kayıtları 180 gün tutulur. Sağlayıcıların işletim yedekleri ayrı bir saklama süresine sahip olabilir. Ayarlar → “Verilerim” bölümünden verilerinizi dışa aktarabilir veya hesabınızı silebilirsiniz. Hesap silme, etkin veritabanındaki hesabı, bağlantıları ve kayıtları kaldırır; App Store aboneliğinizi iptal etmez.",
       limitsTitle: "Sınırlar",
-      limitsBody: "Bu sürümde hesap kurtarma yoktur. Uygulama bir acil yardım veya tıbbi müdahale hizmeti değildir ve bildirimlerin ulaşacağı garanti edilmez.",
+      limitsBody: "Hesap kurtarma yalnızca önceden oluşturup kaydettiğiniz kurtarma anahtarıyla mümkündür. Uygulama bir acil yardım veya tıbbi müdahale hizmeti değildir ve bildirimlerin ulaşacağı garanti edilmez.",
       contactTitle: "İletişim ve sağlayıcı",
       contactBody: "Sağlayıcı: Atahan Kantik — bağımsız geliştirici. Veri talepleri ve sorular için:",
       supportLink: "Destek"

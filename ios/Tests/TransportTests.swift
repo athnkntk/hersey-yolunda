@@ -273,6 +273,119 @@ final class TransportTests: XCTestCase {
         _ = try await api.checkIn(profile: profile, today: today, source: "app")
         XCTAssertEqual(SharedStorage.pending()?.key, "other-key", "a different account's pending action must not be cleared")
     }
+    // --- Kurtarma -----------------------------------------------------------
+    private static let recoveryAuthJSON = "{\"access_token\":\"a9\",\"refresh_token\":\"r9\",\"user_id\":\"u9\",\"expires_in\":900}"
+    private static let statusOffJSON = "{\"enabled\":false,\"version\":0,\"updated_at\":null}"
+    private static let statusOnJSON = "{\"enabled\":true,\"version\":1,\"updated_at\":\"2026-10-20T05:00:00Z\"}"
+
+    func testPrepareAccountRecoveryRequiresSignedOut() async throws {
+        try saveSession()
+        let key = try RecoveryKey.generate()
+        do {
+            _ = try await client().prepareAccountRecovery(key: key)
+            XCTFail("recovery must never overwrite a signed-in account")
+        } catch { XCTAssertTrue(error is LocalError) }
+        XCTAssertNil(try SharedStorage.accountRecovery(), "no pending recovery may be created while signed in")
+    }
+    func testPrepareAccountRecoveryReusesPendingAndRejectsDifferentKey() async throws {
+        let api = client()
+        let key = try RecoveryKey.generate()
+        let first = try await api.prepareAccountRecovery(key: key)
+        let second = try await api.prepareAccountRecovery(key: key)
+        XCTAssertEqual(second, first, "a retry with the same key must reuse the persisted request")
+        let other = try RecoveryKey.generate()
+        do {
+            _ = try await api.prepareAccountRecovery(key: other)
+            XCTFail("a different key must not silently replace a pending attempt")
+        } catch { XCTAssertTrue(error is LocalError) }
+        XCTAssertEqual(try SharedStorage.accountRecovery()?.key, key)
+    }
+    func testRecoverAccountTimeoutPreservesPendingRequestAndKey() async throws {
+        let api = client()
+        let key = try RecoveryKey.generate()
+        let pending = try await api.prepareAccountRecovery(key: key)
+        StubURLProtocol.handler = { _ in throw URLError(.timedOut) }
+        do { try await api.recoverAccount(pending); XCTFail("timeout must fail") }
+        catch { XCTAssertTrue(error is URLError) }
+        let stored = try XCTUnwrap(try SharedStorage.accountRecovery())
+        XCTAssertEqual(stored.requestID, pending.requestID, "retry must reuse the persisted request id")
+        XCTAssertEqual(stored.replacementKey, pending.replacementKey, "retry must reuse the persisted replacement key")
+        XCTAssertNil(try? SharedStorage.session(), "a failed recovery must not create a session")
+    }
+    func testRecoverAccountSuccessSavesSessionUnauthenticatedThenClearsOldCaches() async throws {
+        SharedStorage.defaults.set(Data("stale".utf8), forKey: "snapshot")
+        SharedStorage.defaults.set(Data("stale".utf8), forKey: "pending")
+        let api = client()
+        let key = try RecoveryKey.generate()
+        let pending = try await api.prepareAccountRecovery(key: key)
+        var seenAuthorization: String?
+        var seenBody: [String: Any]?
+        StubURLProtocol.handler = { request in
+            seenAuthorization = request.value(forHTTPHeaderField: "Authorization")
+            seenBody = try? JSONSerialization.jsonObject(with: requestBody(request)) as? [String: Any]
+            return self.response(request, 200, Self.recoveryAuthJSON)
+        }
+        try await api.recoverAccount(pending)
+        XCTAssertNil(seenAuthorization, "recovery must be an unauthenticated request")
+        XCTAssertEqual(seenBody?["recovery_key"] as? String, key)
+        XCTAssertEqual(seenBody?["replacement_key"] as? String, pending.replacementKey)
+        XCTAssertEqual(seenBody?["request_id"] as? String, pending.requestID)
+        let session = try XCTUnwrap(try? SharedStorage.session())
+        XCTAssertEqual(session.auth.userId, "u9")
+        XCTAssertEqual(session.auth.accessToken, "a9")
+        XCTAssertNil(try SharedStorage.accountRecovery(), "acknowledged recovery clears the pending record")
+        XCTAssertNil(SharedStorage.defaults.data(forKey: "snapshot"), "old account caches are cleared after success")
+        XCTAssertNil(SharedStorage.defaults.data(forKey: "pending"))
+    }
+    func testRecoverAccountMalformedResponseNeverCreatesSession() async throws {
+        let api = client()
+        let pending = try await api.prepareAccountRecovery(key: try RecoveryKey.generate())
+        StubURLProtocol.handler = { request in self.response(request, 200, "{}") }
+        do { try await api.recoverAccount(pending); XCTFail("malformed success must fail") }
+        catch { XCTAssertTrue(error is DecodingError) }
+        XCTAssertNil(try? SharedStorage.session(), "a malformed response must not create a session")
+        XCTAssertNotNil(try SharedStorage.accountRecovery(), "the pending attempt is retained for an explicit retry")
+    }
+    func testRecoveryActivationLostResponseRetriesSameKeyAndVersion() async throws {
+        try saveSession()
+        let api = client()
+        StubURLProtocol.handler = { request in self.response(request, 200, Self.statusOffJSON) }
+        let pending = try await api.prepareRecoveryKey(expectedUser: "u1")
+        XCTAssertEqual(pending.expectedVersion, 0)
+        var puts = 0
+        var seenBody: [String: Any]?
+        StubURLProtocol.handler = { request in
+            if request.httpMethod == "PUT" {
+                puts += 1
+                seenBody = try? JSONSerialization.jsonObject(with: requestBody(request)) as? [String: Any]
+                if puts == 1 { throw URLError(.timedOut) }
+                return self.response(request, 200, Self.statusOnJSON)
+            }
+            return self.response(request, 200, Self.statusOffJSON)
+        }
+        do { _ = try await api.activateRecoveryKey(pending); XCTFail("timeout must fail") }
+        catch { XCTAssertTrue(error is URLError) }
+        XCTAssertNotNil(try SharedStorage.recoverySetup(), "a lost response keeps the pending key for retry")
+        let retried = try await api.prepareRecoveryKey(expectedUser: "u1")
+        XCTAssertEqual(retried.key, pending.key, "retry must reuse the same generated key")
+        XCTAssertEqual(retried.expectedVersion, pending.expectedVersion)
+        let status = try await api.activateRecoveryKey(retried)
+        XCTAssertTrue(status.enabled)
+        XCTAssertNil(try SharedStorage.recoverySetup(), "acknowledged activation clears the pending setup")
+        XCTAssertEqual(seenBody?["recovery_key"] as? String, pending.key)
+        XCTAssertEqual(seenBody?["expected_version"] as? Int, 0)
+    }
+    func testRecoverySetupForAnotherAccountCannotOverwritePending() async throws {
+        try saveSession()
+        let api = client()
+        StubURLProtocol.handler = { request in self.response(request, 200, Self.statusOffJSON) }
+        let pending = try await api.prepareRecoveryKey(expectedUser: "u1")
+        do {
+            _ = try await api.prepareRecoveryKey(expectedUser: "u2")
+            XCTFail("a different account must not reuse this device's session")
+        } catch {}
+        XCTAssertEqual(try SharedStorage.recoverySetup()?.key, pending.key, "the original pending setup must survive")
+    }
     func testFailedCheckInKeepsSnapshotAndWidgetFailure() async throws {
         ServerClock.record(at("2026-10-20T05:00:00Z"), deviceNow: Date(), uptime: ProcessInfo.processInfo.systemUptime)
         try saveSession()

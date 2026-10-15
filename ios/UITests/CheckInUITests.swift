@@ -17,8 +17,16 @@ final class CheckInUITests: XCTestCase {
         XCTAssertTrue(app.textFields["nameField"].waitForExistence(timeout: 15))
         app.textFields["nameField"].tap()
         app.textFields["nameField"].typeText(name)
+        dismissKeyboard(app)
         app.buttons["createAccount"].tap()
         dismissNotificationPreprompt(app)
+    }
+    /// Metin alanından kalan yazılım klavyesi ana ekrandaki düğmeyi örtebilir.
+    private func dismissKeyboard(_ app: XCUIApplication) {
+        guard app.keyboards.count > 0 else { return }
+        let candidates = ["Return", "Done", "return", "done"]
+        for key in candidates where app.keyboards.buttons[key].exists { app.keyboards.buttons[key].tap(); return }
+        app.swipeDown()
     }
     /// Sekme dokunuşu yeniden çizim sırasında yutulabilir; hedef görünene kadar tekrar dene.
     private func openTab(_ app: XCUIApplication, tab: String, marker: String) {
@@ -117,6 +125,63 @@ final class CheckInUITests: XCTestCase {
         openTab(app, tab: "Settings", marker: "My account and recovery")
         app.buttons["My account and recovery"].tap()
         XCTAssertEqual(app.staticTexts["accountIdentifier"].firstMatch.label, accountID, "relaunch must keep the same account")
+    }
+
+    func testRecoveryKeyRestoresAccount() throws {
+        let app = launch("en")
+        register(app, name: "Sarah Recovery")
+        let checkIn = app.buttons["checkInButton"]
+        XCTAssertTrue(checkIn.waitForExistence(timeout: 30))
+        for _ in 0..<4 where !checkIn.isHittable { app.swipeUp() }
+        checkIn.tap()
+        XCTAssertTrue(app.otherElements["completedCard"].waitForExistence(timeout: 30))
+        openTab(app, tab: "Settings", marker: "My account and recovery")
+        app.buttons["My account and recovery"].tap()
+        let accountID = app.staticTexts["accountIdentifier"].firstMatch.label
+        XCTAssertFalse(accountID.isEmpty)
+        let settingsLink = app.descendants(matching: .any)["recoveryKeySettings"].firstMatch
+        XCTAssertTrue(settingsLink.waitForExistence(timeout: 10))
+        settingsLink.tap()
+        let create = app.buttons["Create recovery key"]
+        XCTAssertTrue(create.waitForExistence(timeout: 15))
+        create.tap()
+        let keyValue = app.staticTexts["recoveryKeyValue"].firstMatch
+        XCTAssertTrue(keyValue.waitForExistence(timeout: 10))
+        let oldKey = keyValue.label
+        XCTAssertTrue(oldKey.hasPrefix("HYR1."), "expected a generated recovery key in the accessibility label")
+        let saved = app.descendants(matching: .any)["recoveryKeySaved"].firstMatch
+        XCTAssertTrue(saved.waitForExistence(timeout: 10))
+        saved.tap()
+        app.buttons["activateRecoveryKey"].tap()
+        XCTAssertTrue(app.staticTexts["Recovery key is on"].waitForExistence(timeout: 15), "activation must be acknowledged before the key counts")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let signOut = app.buttons["Sign out"]
+        for _ in 0..<4 where !signOut.isHittable { app.swipeUp() }
+        XCTAssertTrue(signOut.waitForExistence(timeout: 10))
+        signOut.tap()
+        let confirm = app.sheets.firstMatch.buttons["Sign out"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 10))
+        confirm.tap()
+        let recoverLink = app.descendants(matching: .any)["recoverAccountLink"].firstMatch
+        XCTAssertTrue(recoverLink.waitForExistence(timeout: 15))
+        recoverLink.tap()
+        let keyInput = app.secureTextFields["recoveryKeyInput"]
+        XCTAssertTrue(keyInput.waitForExistence(timeout: 10))
+        keyInput.tap()
+        keyInput.typeText(oldKey)
+        app.buttons["recoveryContinue"].tap()
+        XCTAssertTrue(keyValue.waitForExistence(timeout: 15), "the new replacement key must be shown before recovery runs")
+        let replacementKey = keyValue.label
+        XCTAssertTrue(replacementKey.hasPrefix("HYR1."))
+        XCTAssertFalse(oldKey == replacementKey, "the replacement key must differ from the consumed key")
+        app.descendants(matching: .any)["recoveryKeySaved"].firstMatch.tap()
+        app.buttons["recoverAccount"].tap()
+        XCTAssertTrue(app.tabBars.buttons["Today"].waitForExistence(timeout: 30), "recovery must return to the signed-in app")
+        openTab(app, tab: "Today", marker: "completedCard")
+        openTab(app, tab: "Settings", marker: "My account and recovery")
+        app.buttons["My account and recovery"].tap()
+        XCTAssertEqual(app.staticTexts["accountIdentifier"].firstMatch.label, accountID, "recovery must restore the same account")
     }
 
     func testLargeTextWelcomeRemainsScrollable() {

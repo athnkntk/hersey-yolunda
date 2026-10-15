@@ -31,7 +31,7 @@ after(async () => { await db.close(); });
 test('migration initialization is repeatable', async () => {
   await db.initialize();
   const versions = await db.transaction(tx => tx.query('SELECT version FROM schema_migrations ORDER BY version'));
-  assert.deepEqual(versions.rows.map(row => row.version), [1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(versions.rows.map(row => row.version), [1, 2, 3, 4, 5, 6, 7]);
 });
 test('transport is called once after provider acceptance', async () => {
   const { viewer } = await fixture();

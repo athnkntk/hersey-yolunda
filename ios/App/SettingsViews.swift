@@ -38,12 +38,12 @@ struct SettingsView: View {
             }
             Section {
                 Text(L10n.format("Herşey Yolunda · %@", Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")).foregroundStyle(.secondary)
-                if APIClient.isLocal { Text(L10n.text("Yerel geliştirme sürümü. Telefon/SMS gerekmez. Canlı push, Apple ile kurtarma ve hukuki metinler henüz hazır değil.")).foregroundStyle(Design.amber) }
+                if APIClient.isLocal { Text(L10n.text("Yerel geliştirme sürümü. Telefon/SMS gerekmez. Canlı push ve hukuki metinler henüz hazır değil.")).foregroundStyle(Design.amber) }
             }
         }.navigationTitle(L10n.text("Ayarlar"))
             .confirmationDialog(Text(L10n.text("Hesabınızdan çıkılsın mı?")), isPresented: $confirmLogout, titleVisibility: .visible) {
                 Button(L10n.text("Çıkış yap")) { Task { await state.logout() } }
-            } message: { Text(L10n.text("Bu sürümde Apple ile kurtarma yoktur. Çıkış yaparsanız bu hesaba erişiminizi kaybedebilirsiniz; adınız veya hesap ID’niz hesabı geri açmaz. Günlük programınız sunucuda devam eder. Kalıcı olarak ayrılıyorsanız hesap silme seçeneğini kullanın.")) }
+            } message: { Text(L10n.text("Kaydedilmiş kurtarma anahtarınız olmadan bu hesaba dönemeyebilirsiniz; adınız veya hesap ID’niz hesabı geri açmaz. Günlük programınız sunucuda devam eder. Kalıcı olarak ayrılıyorsanız hesap silme seçeneğini kullanın.")) }
     }
 }
 
@@ -357,7 +357,9 @@ struct AccountAccessView: View {
                 Text(L10n.text("Aynı adı yazmak eski hesabınıza giriş sağlamaz. Telefon değişimi, cihazın sıfırlanması, oturum kaybı veya çıkıştan sonra hesabınıza erişemeyebilirsiniz. Yeniden kurulumda erişimin korunacağı garanti edilmez."))
             }
             Section(L10n.text("Hesabı koruma ve kurtarma")) {
-                Text(L10n.text("Apple ile hesabı koruma bu sürümde henüz mevcut değildir. Kurtarma bağlantısı olmadan yeni cihazda yeni hesap oluşturup aile eşleştirmelerini tekrar onaylamanız gerekir."))
+                NavigationLink(L10n.text("Kurtarma anahtarı")) { RecoveryKeySettingsView() }
+                    .frame(minHeight: 56).accessibilityIdentifier("recoveryKeySettings")
+                Text(L10n.text("Kurtarma anahtarını etkinleştirip güvenli bir yere kaydettiyseniz aynı hesabı yeni bir cihazda açabilirsiniz. Kurtarma anahtarınız yoksa veya onu kaybettiyseniz yeni hesap oluşturup aile eşleştirmelerini tekrar onaylatmanız gerekir. Apple ile giriş kullanılmaz."))
                 Text(L10n.text("Bir yakınınız sizin hesabınızı devralamaz veya adınıza ‘iyiyim’ gönderemez. Davet bağlantıları yalnızca paylaşım ilişkisi kurar; hesabınıza giriş sağlamaz."))
             }
         }.navigationTitle(L10n.text("Hesabım ve kurtarma"))
@@ -375,7 +377,7 @@ struct PrivacyView: View {
                 privacy(L10n.text("Toplanan bilgiler"), L10n.text("Ad, sistemin atadığı hesap kimliği, günlük beyan zamanı, izin verdiğiniz ilişkiler, güvenli cihaz oturumu ve gerekli bildirim bilgileri. Yeni hesap için telefon veya SMS istenmez. Konum, sağlık ölçümleri, kamera, mikrofon ve rehber toplanmaz."))
                 privacy(L10n.text("Paylaşım"), L10n.text("Günlük haberinizi yalnızca açıkça yetkilendirdiğiniz yakınlar görür. Paylaşımı Ailem ekranından istediğiniz zaman durdurabilirsiniz."))
                 privacy(L10n.text("Saklama"), L10n.text("Check-in geçmişi 30 günlük temizlik politikasına tabidir. Hesap silme, bu sunucudaki hesabı ve ilişkili kayıtları siler."))
-                privacy(L10n.text("Hesap ve oturum"), L10n.text("Adınız bir kimlik bilgisi değildir; yeni bir cihazda aynı adı yazmak eski hesabınızı açmaz. Bu sürümde hesap kurtarma yoktur; oturum kaybında yeni hesap ve aile eşleştirmesi gerekir."))
+                privacy(L10n.text("Hesap ve oturum"), L10n.text("Adınız bir kimlik bilgisi değildir; yeni bir cihazda aynı adı yazmak eski hesabınızı açmaz. Hesabınıza dönmek için önceden oluşturup kaydettiğiniz kurtarma anahtarı gerekir; anahtar yoksa oturum kaybında yeni hesap ve aile eşleştirmesi gerekir."))
                 privacy(L10n.text("Hizmet sınırları"), L10n.text("Bu uygulama acil yardım veya tıbbi müdahale hizmeti değildir. Kullanıcı beyanı, sağlık durumunun doğrulandığı anlamına gelmez. Push bildirimleri gecikebilir veya görülmeyebilir. Acil durumda bulunduğunuz ülkedeki acil yardım numarasını arayın."))
                 Link(L10n.text("Tam gizlilik metni"), destination: page)
                 Link(L10n.text("Destek"), destination: support)

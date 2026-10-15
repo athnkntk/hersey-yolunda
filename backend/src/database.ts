@@ -136,6 +136,21 @@ export class Database {
       ALTER TABLE sessions ADD COLUMN refresh_request_hash TEXT;
       ALTER TABLE sessions ADD COLUMN refresh_response_encrypted TEXT;
       ALTER TABLE sessions ADD COLUMN refresh_replay_until TIMESTAMPTZ;
+    `, `
+      ALTER TABLE users ADD COLUMN recovery_key_hash TEXT UNIQUE;
+      ALTER TABLE users ADD COLUMN recovery_key_version INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE users ADD COLUMN recovery_key_set_at TIMESTAMPTZ;
+      CREATE TABLE account_recoveries (
+        request_hash TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users ON DELETE CASCADE,
+        old_key_hash TEXT NOT NULL,
+        replacement_key_hash TEXT NOT NULL,
+        fingerprint TEXT NOT NULL,
+        family_id TEXT NOT NULL,
+        response_encrypted TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL
+      );
+      CREATE INDEX account_recoveries_expiry ON account_recoveries(expires_at);
     `];
     await this.transaction(async db => {
       await db.query('CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())');

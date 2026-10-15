@@ -56,6 +56,9 @@ async function main() {
   @Module({ controllers: [APIController], providers: [{ provide: Service, useValue: service }] })
   class AppModule {}
   const app = await NestFactory.create(AppModule, { logger: ['error', 'warn'], bodyParser: false });
+  // Render sits behind one proxy hop; without this request.ip is the load balancer
+  // and per-network rate limits would be shared globally. One trusted hop only.
+  if (production) app.getHttpAdapter().getInstance().set('trust proxy', 1);
   app.use(json({ limit: '16kb' }));
   const host = process.env.HOST ?? (production ? '0.0.0.0' : '127.0.0.1');
   await app.listen(Number(process.env.PORT ?? 3000), host);

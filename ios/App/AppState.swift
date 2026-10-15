@@ -92,6 +92,7 @@ final class AppState: ObservableObject {
         today = nil
         signedIn = false
         online = false
+        tab = 0
         sending = false
         error = nil
         message = nil
