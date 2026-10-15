@@ -97,8 +97,12 @@ $ip.sslip.io {
 "@ | Out-File "$caddyDir\Caddyfile" -Encoding ascii
 
 # --- 7. Services ---
-$envExtra = @('NODE_ENV=production','HOST=127.0.0.1','PORT=3000','SCHEDULER_MODE=external') +
-            (Get-Content $envFile | Where-Object { $_ -match '=' })
+$merged = [ordered]@{}
+Get-Content $envFile | ForEach-Object { if ($_ -match '^\s*([A-Za-z_]+)\s*=\s*(.*)$') { $merged[$Matches[1].Trim()] = $Matches[2].Trim() } }
+# Bind localhost only — Caddy is the public edge on 443
+$merged['NODE_ENV'] = 'production'; $merged['HOST'] = '127.0.0.1'
+$merged['PORT'] = '3000'; $merged['SCHEDULER_MODE'] = 'external'
+$envExtra = $merged.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }
 $backendDir = "$repo\hersey-yolunda-main\backend"
 
 if (-not (Get-Service HerseyAPI -ErrorAction SilentlyContinue)) {
