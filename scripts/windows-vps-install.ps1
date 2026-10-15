@@ -77,7 +77,7 @@ Write-Host '==> npm ci + typecheck...'
 Push-Location $backendDir
 & "$nodeDir\npm.cmd" ci --include=dev --ignore-scripts --no-audit --no-fund
 if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }
-& "$nodeDir\npm.cmd" run build
+& "$nodeDir\npm.cmd" run build   # typecheck smoke test; non-fatal
 Pop-Location
 
 # --- 5. Caddy binary ---
@@ -94,16 +94,18 @@ $ip.sslip.io {
 }
 "@ | Out-File "$caddyDir\Caddyfile" -Encoding ascii
 
-# --- 7. Windows services via sc.exe (no external downloads) ---
+# --- 7. Scheduled tasks running at startup as SYSTEM (auto-restart on crash) ---
 $merged = [ordered]@{}
 foreach ($k in $kv.Keys) { $merged[$k] = $kv[$k] }
 $merged['NODE_ENV'] = 'production'; $merged['HOST'] = '127.0.0.1'
 $merged['PORT'] = '3000'; $merged['SCHEDULER_MODE'] = 'external'
 $envLines = @($merged.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" })
 
-# cmd wrappers (binPath needs a single exe; logs go to C:\hy\logs)
+# cmd wrappers hold the env inline (scheduled tasks can't take per-task env)
+$setLines = ($envLines | ForEach-Object { "set `"$_`"" }) -join "`r`n"
 @"
 @echo off
+$setLines
 cd /d $backendDir
 "$nodeDir\node.exe" --import tsx src\main.ts >> "$logDir\api.log" 2>&1
 "@ | Out-File "$root\run-api.cmd" -Encoding ascii
@@ -111,23 +113,23 @@ cd /d $backendDir
 @echo off
 "$caddyDir\caddy.exe" run --config "$caddyDir\Caddyfile" --adapter caddyfile >> "$logDir\caddy.log" 2>&1
 "@ | Out-File "$root\run-caddy.cmd" -Encoding ascii
+icacls "$root\run-api.cmd" /inheritance:r /grant 'Administrators:F' /grant 'SYSTEM:F' | Out-Null
 
-foreach ($svc in @('HerseyAPI','HerseyCaddy')) {
-    if (Get-Service $svc -ErrorAction SilentlyContinue) { sc.exe stop $svc | Out-Null; sc.exe delete $svc | Out-Null; Start-Sleep 2 }
+foreach ($t in @('HerseyAPI','HerseyCaddy')) {
+    Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction SilentlyContinue
+    sc.exe delete $t 2>$null | Out-Null   # clean any leftover from the sc.exe attempt
 }
-sc.exe create HerseyAPI   binPath= "$root\run-api.cmd"   start= auto | Out-Null
-sc.exe create HerseyCaddy binPath= "$root\run-caddy.cmd" start= auto | Out-Null
-sc.exe failure HerseyAPI   reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
-sc.exe failure HerseyCaddy reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
-
-# Service env vars via the registry (HKLM\...\Services\<name>\Environment)
-Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\HerseyAPI' -Name Environment -PropertyType MultiString -Value $envLines
+$trigger   = New-ScheduledTaskTrigger -AtStartup
+$principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+$settings  = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit 0 -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+Register-ScheduledTask -TaskName 'HerseyAPI'   -Action (New-ScheduledTaskAction -Execute "$root\run-api.cmd")   -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
+Register-ScheduledTask -TaskName 'HerseyCaddy' -Action (New-ScheduledTaskAction -Execute "$root\run-caddy.cmd") -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
 
 # --- 8. Start + verify ---
 Write-Host '==> Starting services...'
-sc.exe start HerseyAPI   | Out-Null
-sc.exe start HerseyCaddy | Out-Null
-Start-Sleep 10
+Start-ScheduledTask -TaskName 'HerseyAPI'
+Start-ScheduledTask -TaskName 'HerseyCaddy'
+Start-Sleep 12
 
 $local = $null
 try { $local = Invoke-RestMethod 'http://127.0.0.1:3000/v1/health' -TimeoutSec 10 } catch {}
