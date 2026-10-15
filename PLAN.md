@@ -1607,6 +1607,24 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 
 - **Sınırlar:** Üretim deploy/Render yapılandırması ve ASC gönderimi liderin aşaması; gerçek cihaz Keychain davranışı, `trust proxy` varsayımının canlı doğrulaması (Render tek hop varsayımı resmi belgeye dayanır, üretimde ayrıca gözlenmeli) ve StoreKit gerçek satın alma doğrulanmadı. Apple ile hesap bağlama hâlâ yok; kurtarma yalnız kullanıcının önceden kaydettiği anahtarla çalışır.
 
+#### Windows VPS + yerel Postgres geçişi — 15 Ekim 2026
+
+- **Karar:** Render free + Supabase ikilisi terk edildi. Supabase projesi `bsenfhvoytxwtkwcsbzl` kayboldu/pause oldu (`tenant/user not found`, `db.*.supabase.co` → 192.168.1.1); içindeki test hesaplarıyla birlikte veri kayboldu kabul edildi. Üretim artık kullanıcının Windows VPS'inde (`92.205.190.116`): **PostgreSQL 17.6** (`C:\hy\pgsql`, `hersey` DB, yalnız 127.0.0.1) + Node 22.23.3 + backend `node --import tsx src/main.ts` (`run-api.cmd`, `HerseyAPI` scheduled task, SYSTEM, boot'ta otomatik).
+- **Edge:** IIS siteleri (temyazilim.app, eczetra.com, temcad.app vb.) 80/443'ü SNI ile tuttuğundan dokunulmadı. http.sys'e `92.205.190.116.sslip.io` için urlacl + WebHosting store'daki Let's Encrypt sertifikası (win-acme, 9 Ara 2026'ya) hostname-port binding'i eklendi; `HerseyProxy` scheduled task'ı PowerShell `HttpListener` ile `https://92.205.190.116.sslip.io:443` → `http://127.0.0.1:3000` iletir (`UseProxy=$false` şart — ESET sistem proxy'si), `SendAsync` kullanılır (Framework'te `Send` yok), `Add-Type -AssemblyName System.Net.Http` gerekli.
+- **Yedekleme:** `HerseyBackup` görevi günlük 04:00 `pg_dump -F c` → `C:\hy\backups`, 30 gün rotasyon.
+- **iOS:** Release `HY_API_URL` → `https://92.205.190.116.sslip.io/v1`, build **11**. GitHub `vars.API_URL` güncellendi; `secrets.TICK_SECRET` VPS'teki `run-api.cmd` değeriyle eşitlenmeli.
+
+**Doğrulama — 15 Ekim 2026 (canlı VPS)**
+
+| Kontrol | Sonuç | Kanıt |
+|---|---|---|
+| Public health | Geçti | `https://92.205.190.116.sslip.io/v1/health` → `{"status":"ok","mode":"production"}` (Let's Encrypt TLS, HTTP/2) |
+| DB'ye yazan kayıt | Geçti | `POST /v1/auth/device` (timezone dahil) → access+refresh token döndü |
+| `/v1/tick` | Geçti | doğru secret → `{"ok":true,...}` |
+| IIS etkisi | Yok | hostname tabanlı http.sys kaydı; mevcut site binding'leri değişmedi |
+
+- **Sınırlar:** APNs hâlâ kapalı (`push_configured:false`). Veri şifreleme anahtarları sohbette göründüğü için `DATA_ENCRYPTION_KEY`/`LOOKUP_KEY` yenileriyle üretildi — eski Supabase verisi zaten erişilemez olduğundan kayıp kabul edildi. VPS tek nokta arızası; yedekler aynı makinede (dışa kopyalama açık iş). win-acme renewal görevi sağlıksız işaretlendi — Aralık'ta elle kontrol.
+
 ## 34. Değişiklik geçmişi
 
 | Sürüm | Tarih | Değişiklik |
@@ -1621,7 +1639,8 @@ Ortam notu: İlk Node/TypeScript çalıştırmalarında paket dosyası okuma gec
 | 1.7 | 28 Eylül 2026 | Kapsamlı iOS denetimi (40 bulgu), Aşama 1 düzeltmeleri (Y1 health decode + aps-environment, Y2 hatırlatma sekmesi, Y4 deneme uygunluğu, Y5 bildirim metni, Y8 pasif buton, O11 program doğrulaması, D1 UI test), sürüm değişkenlerinin project.yml'de kalıcılaştırılması, AppLaunchpad tarzı App Store görselleri (3 boyut) ve 1.0.1 (7) inceleme gönderimi. |
 | 1.8 | 15 Ekim 2026 | Küresel sürüm (1.1.0) yerel hazırlığı: hesap timezone'u + tr/en backend lokalizasyonu + Multer 2.4.0 (audit 0) (backend v6, deploy bekliyor); ServerClock/supersedes/oturum sahipliği/kilitli bildirim planlaması iOS tarafında; tam tr/en uygulama+widget; çift dilli destek/gizlilik/davet sayfaları (davet token'ı yalnız sözdizimsel — public durum ucu yok); yerel mağaza paketi (metadata + review görselleri); dağıtım imzalı yerel IPA doğrulandı. Üretim deploy, ASC yazımı ve gerçek cihaz açık kalır. |
 | 1.9 | 15 Ekim 2026 | Kullanıcı-elinde kurtarma anahtarı (build 10): backend v7 (`recovery_key_hash`/sürüm + `account_recoveries` replay tablosu, `GET/PUT/DELETE /me/recovery-key`, kimliksiz `POST /auth/recover`); iOS `RecoveryKey` + Keychain bekleyen kayıtlar + `RecoveryViews` (Ayarlar kurulumu ve karşılama/oturum-sonu kurtarma akışı); Render tek-hop `trust proxy` (yalnız üretim); Xcode 16.4 uyumu için widget `L10n.text`. Yerel doğrulama: backend 37/37, iOS birim + `testRecoveryKeyRestoresAccount` UI akışı geçti. |
+| 1.10 | 15 Ekim 2026 | Üretim Windows VPS'e taşındı: yerel PostgreSQL 17 + Node 22 + `HerseyAPI`/`HerseyProxy`/`HerseyBackup` scheduled task'ları, http.sys hostname binding + Let's Encrypt (win-acme) ile `92.205.190.116.sslip.io`; IIS siteleri etkilenmedi. Render ve Supabase terk edildi (Supabase projesi kayıp → sıfırdan şema). Canlı doğrulama: health, kayıt, /v1/tick. Release API URL ve build 11 güncellendi. |
 
 ---
 
-**Bir sonraki adım:** Doğru yayın sırası: (1) kullanıcı onayıyla backend v6'yı Render'a deploy et (eski sunucu `/auth/device`'taki `timezone` alanını reddeder — yeni uygulama önce gönderilemez); (2) canlı `/v1/health` + migration doğrulaması; (3) üretim API'sine karşı gerçek mağaza ekran görüntülerinin yeniden yakalanması (AGENTS.md'deki production capture komutu); (4) ASC 1.1.0 metadata/ekran görüntüsü yazımı + imzalı export/upload; (5) inceleme sonrası yayın. Paralelde açık işler: APNs yapılandırması ve canlı teslimat, StoreKit sunucu doğrulaması, gerçek cihaz/VoiceOver/TestFlight, hukuki inceleme. Teknik kayıtlar Bölüm 33'tedir.
+**Bir sonraki adım:** (1) GitHub `secrets.TICK_SECRET`'ı VPS'teki `run-api.cmd` değeriyle eşitle; (2) build 11 arşiv + ASC upload + 1.1.0'a ata + incelemeye gönder; (3) istersek üretim API'sine karşı mağaza ekran görüntülerini yeniden yakala. Paralel açık işler: APNs yapılandırması + canlı teslimat, StoreKit gerçek satın alma, yedeklerin VPS dışına kopyalanması, win-acme renewal görev sağlığı (Aralık). Teknik kayıtlar Bölüm 33'tedir.
